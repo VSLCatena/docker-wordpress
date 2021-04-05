@@ -34,6 +34,9 @@ services:
       WORDPRESS_DB_PASSWORD: wordpress
       WORDPRESS_DB_NAME: wordpress
       WORDPRESS_TABLE_PREFIX: PREFIX_
+ 	    WORDPRESS_CONFIG_EXTRA: |
+		    // Disallow file edit
+		    define( 'DISALLOW_FILE_EDIT', true );     
       
     networks:
       - net
