@@ -3,6 +3,8 @@ version: "3.9"
 
 services:
   db:
+    container_name: wp_db
+    hostname: wp_db
     image: mysql:5.7
     volumes:
       - db_data:/var/lib/mysql
@@ -14,7 +16,11 @@ services:
       MYSQL_PASSWORD: wordpress
     networks:
       - net
+## update WORDPRESS_TABLE_PREFIX_options set option_value='https://URL' where option_id<=2; #siteurl / home       
+
   wordpress:
+    container_name: wp
+    hostname: wp
     depends_on:
       - db
     image: wordpress:php8.0
@@ -27,6 +33,8 @@ services:
       WORDPRESS_DB_USER: wordpress
       WORDPRESS_DB_PASSWORD: wordpress
       WORDPRESS_DB_NAME: wordpress
+      WORDPRESS_TABLE_PREFIX: PREFIX_
+      
     networks:
       - net
 volumes:
