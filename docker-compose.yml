@@ -23,7 +23,12 @@ services:
     hostname: wp
     depends_on:
       - db
-    image: wordpress:php8.0
+    #image: wordpress:php8.0
+    build:
+      context: .
+      dockerfile: Dockerfile
+      #args:
+      #  INSTALL_PLUGINS: 
     ports:
       - "127.0.0.1:9001:80"
     restart: always
