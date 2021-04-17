@@ -17,6 +17,14 @@ services:
     networks:
       - net
 ## update WORDPRESS_TABLE_PREFIX_options set option_value='https://URL' where option_id<=2; #siteurl / home       
+  wp-cli:
+    container_name: wp-cli
+    hostname: wp-cli
+    depends_on: 
+      - wp
+    image: wordpress:cli-php8.0
+    networks:
+      - net
 
   wordpress:
     container_name: wp
@@ -39,9 +47,9 @@ services:
       WORDPRESS_DB_PASSWORD: wordpress
       WORDPRESS_DB_NAME: wordpress
       WORDPRESS_TABLE_PREFIX: PREFIX_
- 	    WORDPRESS_CONFIG_EXTRA: |
-		    // Disallow file edit
-		    define( 'DISALLOW_FILE_EDIT', true );     
+      WORDPRESS_CONFIG_EXTRA: |
+         // Disallow file edit
+         define( 'DISALLOW_FILE_EDIT', true );     
       
     networks:
       - net
