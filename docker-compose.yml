@@ -1,8 +1,7 @@
-
 version: "3.9"
 
 services:
-  db:
+  wp_db:
     container_name: wp_db
     hostname: wp_db
     image: mysql:5.7
@@ -22,8 +21,15 @@ services:
     container_name: wp-cli
     hostname: wp-cli
     depends_on: 
+      - wp_db
       - wp
     image: wordpress:cli-php8.0
+    volumes_from:
+      - wp
+    links:
+      - wp_db:mysql
+    entrypoint: "wp --path=/var/www/html"
+    command: "--info"
     networks:
       - net
 
@@ -31,20 +37,22 @@ services:
     container_name: wp
     hostname: wp
     depends_on:
-      - db
+      - wp_db
     image: wordpress:php8.0
     ports:
       - "127.0.0.1:9001:80"
     volumes: 
       - ./wp-html:/var/www/html
     restart: always
+    #commands:
+    #  - sh -c "'s/WORDPRESS_DB_HOST/JUST TESTING/'"
     environment:
       WORDPRESS_DEBUG: 0
-      WORDPRESS_DB_HOST: db:3306
+      WORDPRESS_DB_HOST: wp_db:3306
       WORDPRESS_DB_USER: wordpress
       WORDPRESS_DB_PASSWORD: wordpress
       WORDPRESS_DB_NAME: wordpress
-      WORDPRESS_TABLE_PREFIX: PREFIX_
+      WORDPRESS_TABLE_PREFIX: wp_
       WORDPRESS_CONFIG_EXTRA: |
          // Disallow file edit
          define( 'DISALLOW_FILE_EDIT', true );     
