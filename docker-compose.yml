@@ -1,12 +1,23 @@
 version: "3.9"
 
+networks:
+  net:
+    driver: bridge
+    ipam:
+     driver: default
+     config:
+       - subnet: 192.168.9.24/29 #192.168.9.25 - 192.168.9.30
+    driver_opts:
+      com.docker.network.bridge.name: wp-ver_net
+
 services:
   wp_db:
     container_name: wp_db
     hostname: wp_db
-    image: mysql:5.7
+    image: mariadb
+#    image: mysql:5.7
     volumes:
-      - ./mysql:/var/lib/mysql
+      - wp-db:/var/lib/mysql
     restart: always
     environment:
       MYSQL_ROOT_PASSWORD: rootpw
@@ -17,22 +28,6 @@ services:
       - net
 ## update WORDPRESS_TABLE_PREFIX_options set option_value='https://URL' where option_id<=2; #siteurl / home       
 
-  wp-cli:
-    container_name: wp-cli
-    hostname: wp-cli
-    depends_on: 
-      - wp_db
-      - wp
-    image: wordpress:cli-php8.0
-    volumes_from:
-      - wp
-    links:
-      - wp_db:mysql
-    entrypoint: "wp --path=/var/www/html"
-    command: "--info"
-    networks:
-      - net
-
   wp:
     container_name: wp
     hostname: wp
@@ -40,14 +35,14 @@ services:
       - wp_db
     image: wordpress:php8.0
     ports:
+#      - "9001:80"
       - "127.0.0.1:9001:80"
     volumes: 
-      - ./wp-html:/var/www/html
+      - wp-data:/var/www/html
+      - ./docker-entrypoint2.sh:/usr/local/bin/docker-entrypoint2.sh
     restart: always
-    #commands:
-    #  - sh -c "'s/WORDPRESS_DB_HOST/JUST TESTING/'"
     environment:
-      WORDPRESS_DEBUG: 0
+      WORDPRESS_DEBUG: 1
       WORDPRESS_DB_HOST: wp_db:3306
       WORDPRESS_DB_USER: wordpress
       WORDPRESS_DB_PASSWORD: wordpress
@@ -56,19 +51,30 @@ services:
       WORDPRESS_CONFIG_EXTRA: |
          // Disallow file edit
          define( 'DISALLOW_FILE_EDIT', true );     
-      
+    entrypoint: /usr/local/bin/docker-entrypoint2.sh
+    command: apache2-foreground 
     networks:
       - net
+
+  wp_cli:
+    container_name: wp-cli
+    hostname: wp-cli
+    depends_on:
+      - wp_db
+      - wp
+    image: wordpress:cli-php8.0
+    volumes_from:
+      - wp
+      - wp_db
+    links:
+      - wp_db:mysql
+    entrypoint: wp
+    command: "--info"
+    working_dir: /var/www/html
+    networks:
+      - net
+
+
 volumes:
-  db_data: {}
-
-
-networks:
-  net:
-    driver: bridge
-    ipam:
-     driver: default
-     config:
-       - subnet: 192.168.90.24/29 #192.168.90.25 - 192.168.90.30 
-    driver_opts:
-      com.docker.network.bridge.name: wp-ver_net
+  wp-db:
+  wp-data:
