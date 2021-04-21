@@ -6,7 +6,7 @@ networks:
     ipam:
      driver: default
      config:
-       - subnet: 192.168.9.24/29 #192.168.9.25 - 192.168.9.30
+       - subnet: 192.168.90.24/29 #192.168.90.25 - 192.168.90.30
     driver_opts:
       com.docker.network.bridge.name: wp-ver_net
 
@@ -35,10 +35,10 @@ services:
       - wp_db
     image: wordpress:php8.0
     ports:
-#      - "9001:80"
-      - "127.0.0.1:9001:80"
+      - "9001:80"
+#      - "127.0.0.1:9001:80"
     volumes: 
-      - wp-data:/var/www/html
+      - wp-data:/var/www/html 
       - ./docker-entrypoint2.sh:/usr/local/bin/docker-entrypoint2.sh
     restart: always
     environment:
@@ -63,13 +63,21 @@ services:
       - wp_db
       - wp
     image: wordpress:cli-php8.0
+    environment:
+      WP_ADMIN: justsomeadmin
+      WP_ADMIN_PASSWORD: justsomepassword
+      WP_ADMIN_EMAIL: email@mymail.com
+      WP_URL: 127.0.0.1:9001
+      WP_TITLE: mytestwebsite
     volumes_from:
       - wp
       - wp_db
     links:
       - wp_db:mysql
-    entrypoint: wp
-    command: "--info"
+    user: "33:33"
+    command: /bin/bash -c "
+        sleep 20 
+        &&  /usr/local/bin/php -f /usr/local/bin/wp core install --path=/var/www/html --url=$${WP_URL} --title=$${WP_TITLE} --admin_user=$${WP_ADMIN}  --admin_password=$${WP_ADMIN_PASSWORD}  --admin_email=$${WP_ADMIN_EMAIL}"
     working_dir: /var/www/html
     networks:
       - net
