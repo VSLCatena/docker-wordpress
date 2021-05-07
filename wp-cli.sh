@@ -1,5 +1,12 @@
 #!/bin/sh
-docker-compose run --rm --user="33:33" -e HOME=/tmp wp_cli wp-cli $@
-
-#wp-cli core install --url=192.168.1.4:9001 --title="WP-CLI" --admin_user=wpcli --admin_password=wpcli --admin_email=info@wp-cli.org --path='/var/www/html/'
-#wp-cli plugin install better-wp-security redirection cookie-notice disable-comments google-calendar-events wp-mail-smtp maintenance wordfence
+read -p "wp-cli container name:" container
+if [ -f './.WP_INITIALIZED' ]; then
+    docker-compose run --rm --user="33:33" -e HOME=/tmp $container wp-cli $@
+else
+    touch ./.WP_INITIALIZED
+    read -p "Mail address of new user:" mail
+    read -p "Username of new user:" username
+    docker-compose run --rm --user="33:33" -e HOME=/tmp $container plugin install --activate better-wp-security redirection cookie-notice disable-comments google-calendar-events wp-mail-smtp maintenance wordfence
+    #docker-compose run --rm --user="33:33" -e HOME=/tmp $container plugin auto-updates enable --all
+    docker-compose run --rm --user="33:33" -e HOME=/tmp $container user create $username $mail --role=administrator
+fi
