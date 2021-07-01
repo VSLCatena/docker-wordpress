@@ -6,33 +6,28 @@ networks:
     ipam:
      driver: default
      config:
-       - subnet: 192.168.90.24/29 #192.168.90.25 - 192.168.90.30
+       - subnet: "${WP_SUBNET}/29" #192.168.90.25 - 192.168.90.30
     driver_opts:
-      com.docker.network.bridge.name: wp-ver_net
+      com.docker.network.bridge.name: "${WP_SUBNET_NAME}"
 
 services:
-  wp_db:
-    container_name: wp_db
-    hostname: wp_db
+  ${WP_DB_NAME}:
+    container_name: ${WP_DB_NAME}
+    hostname: ${WP_DB_NAME}
     image: mariadb
 #    image: mysql:5.7
     volumes:
       - wp-db:/var/lib/mysql
     restart: always
-    environment:
-      MYSQL_ROOT_PASSWORD: rootpw
-      MYSQL_DATABASE: wordpress
-      MYSQL_USER: wordpress
-      MYSQL_PASSWORD: wordpress
     networks:
       - net
 ## update WORDPRESS_TABLE_PREFIX_options set option_value='https://URL' where option_id<=2; #siteurl / home       
 
-  wp:
-    container_name: wp
-    hostname: wp
+  ${WP_NAME}:
+    container_name: ${WP_NAME}
+    hostname: ${WP_NAME}
     depends_on:
-      - wp_db
+      - ${WP_DB_NAME}
     image: wordpress:php8.0
     ports:
       - "9001:80"
@@ -41,39 +36,23 @@ services:
       - wp-data:/var/www/html 
       - ./docker-entrypoint2.sh:/usr/local/bin/docker-entrypoint2.sh
     restart: always
-    environment:
-      WORDPRESS_DEBUG: 1
-      WORDPRESS_DB_HOST: wp_db:3306
-      WORDPRESS_DB_USER: wordpress
-      WORDPRESS_DB_PASSWORD: wordpress
-      WORDPRESS_DB_NAME: wordpress
-      WORDPRESS_TABLE_PREFIX: wp_
-      WORDPRESS_CONFIG_EXTRA: |
-         // Disallow file edit
-         define( 'DISALLOW_FILE_EDIT', true );     
     entrypoint: /usr/local/bin/docker-entrypoint2.sh
     command: apache2-foreground 
     networks:
       - net
 
-  wp_cli:
-    container_name: wp-cli
-    hostname: wp-cli
+  ${WP_CLI_NAME}:
+    container_name: ${WP_CLI_NAME}
+    hostname: ${WP_CLI_NAME}
     depends_on:
-      - wp_db
-      - wp
+      - ${WP_DB_NAME}
+      - ${WP_NAME}
     image: wordpress:cli-php8.0
-    environment:
-      WP_ADMIN: justsomeadmin
-      WP_ADMIN_PASSWORD: justsomepassword
-      WP_ADMIN_EMAIL: email@mymail.com
-      WP_URL: 127.0.0.1:9001
-      WP_TITLE: mytestwebsite
     volumes_from:
-      - wp
-      - wp_db
+      - ${WP_DB_NAME}
+      - ${WP_NAME}
     links:
-      - wp_db:mysql
+      - ${WP_DB_NAME}:mysql
     user: "33:33"
     command: /bin/bash -c "
         sleep 20 
