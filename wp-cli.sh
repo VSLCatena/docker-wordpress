@@ -79,7 +79,10 @@ pluginsWP() {
 optionsWP() {
     for item in "${!WPO_@}"
     do
-        eval $wp_docker ${WP_CLI_NAME} wp option patch ${item} keypath  ${!item} --format=plaintext
+        item=${item}
+        keypath=$( echo ${!item} | cut -d ',' -f1 )
+        value=$( echo ${!item} | cut -d ',' -f2 )
+        eval $wp_docker ${WP_CLI_NAME} wp option patch ${item} ${keypath}  ${value} --format=plaintext
         echo"${!item}"
     done
 }
