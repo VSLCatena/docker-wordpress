@@ -65,11 +65,24 @@ initWP() {
         [[ ${WP_HTTPS} == 1 ]] && WP_PROT="https" || WP_PROT="http"
         sleep 15
         eval $wp_docker ${WP_CLI_NAME} wp core install --url="${WP_PROT}://${WP_URL}" --title=${WP_TITLE} --admin_user=${WP_ADMIN} --admin_password=${WP_ADMIN_PASSWORD} --admin_email=${WP_ADMIN_EMAIL}
-        eval $wp_docker ${WP_CLI_NAME} wp plugin install --activate better-wp-security redirection cookie-notice disable-comments google-calendar-events wp-mail-smtp maintenance wordfence
-        eval $wp_docker ${WP_CLI_NAME} wp plugin auto-updates enable --all
-     #   $wp_docker user create $username $mail --role=administrator
+        pluginsWP
+        sleep 15
+        #optionsWP
+     #  $wp_docker user create $username $mail --role=administrator
 }
 
+pluginsWP() {
+    eval $wp_docker ${WP_CLI_NAME} wp plugin install --activate ${WP_PLUGINS}
+    eval $wp_docker ${WP_CLI_NAME} wp plugin auto-updates enable --all #awaiting update to implement this function
+}
+
+optionsWP() {
+    for item in "${!WPO_@}"
+    do
+        eval $wp_docker ${WP_CLI_NAME} wp option patch ${item} keypath  ${!item} --format=plaintext
+        echo"${!item}"
+    done
+}
 
 main() {
     if [[ -f './.WP_INITIALIZED' && $force == 0 ]]; then
