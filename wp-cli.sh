@@ -29,6 +29,20 @@ Install Wordpress and configure for Docker
 EOF
 # EOF is found above and hence cat command stops reading. This is equivalent to echo but much neater when printing out.
 }
+addDNSentry() {
+body={
+    "login": "test-user",
+    "nonce": "98475920834",
+    "read_only": false,
+    "expiration_time": "30 minutes",
+    "label": "add description",
+    "global_key": true
+}
+   WP_URLDOMAIN=${WP_URL} 
+   signature=openssl dgst -sha512 -sign  $body
+   auth=$(curl -X POST -H "Content-Type: application/json" -H $signature -d $body "ttps://api.transip.nl/v6/auth")
+   dnsreq=$(curl -X POST -H "Content-Type: application/json" -H "Authorization: Bearer [your JSON web token]" -d '{  "dnsEntry": {    "name": "www",    "expire": 86400,    "type": "A",    "content": "127.0.0.1"  }} ' "https://api.transip.nl/v6/domains/${WP_URLDOMAIN}/dns")
+}
 
 
 addVirtualHost() {
