@@ -30,18 +30,19 @@ EOF
 # EOF is found above and hence cat command stops reading. This is equivalent to echo but much neater when printing out.
 }
 addDNSentry() {
-body={
-    "login": "test-user",
-    "nonce": "98475920834",
-    "read_only": false,
-    "expiration_time": "30 minutes",
-    "label": "add description",
-    "global_key": true
-}
-   WP_URLDOMAIN=${WP_URL} 
-   signature=openssl dgst -sha512 -sign  $body
-   auth=$(curl -X POST -H "Content-Type: application/json" -H $signature -d $body "ttps://api.transip.nl/v6/auth")
-   dnsreq=$(curl -X POST -H "Content-Type: application/json" -H "Authorization: Bearer [your JSON web token]" -d '{  "dnsEntry": {    "name": "www",    "expire": 86400,    "type": "A",    "content": "127.0.0.1"  }} ' "https://api.transip.nl/v6/domains/${WP_URLDOMAIN}/dns")
+    #body='{
+    #    "login": "test-user",
+    #    "nonce": "98475920834",
+    #    "read_only": false,
+    #    "expiration_time": "30 minutes",
+    #    "label": "add description",
+    #    "global_key": true
+    #}'
+    #WP_URLDOMAIN=${WP_URL} 
+    #signature=openssl dgst -sha512 -sign  $body
+    #auth=$(curl -X POST -H "Content-Type: application/json" -H $signature -d $body "ttps://api.transip.nl/v6/auth")
+    #dnsreq=$(curl -X POST -H "Content-Type: application/json" -H "Authorization: Bearer [your JSON web token]" -d '{  "dnsEntry": {    "name": "www",    "expire": 86400,    "type": "A",    "content": "127.0.0.1"  }} ' "https://api.transip.nl/v6/domains/${WP_URLDOMAIN}/dns")
+    echo 1
 }
 
 
@@ -91,14 +92,24 @@ pluginsWP() {
 }
 
 optionsWP() {
+
+    #keyvalue
     for item in "${!WPO_@}"
     do
-        item=${item}
+        key=${item} | cut -c4
+        value=$( echo ${!item} | cut -d ',' -f1 )
+        eval $wp_docker ${WP_CLI_NAME} wp option update ${key} ${value}  --format=json
+    done
+
+    #objects
+    for item in "${!WPOP_@}"
+    do
+        item=${item} | cut -c5
         keypath=$( echo ${!item} | cut -d ',' -f1 )
         value=$( echo ${!item} | cut -d ',' -f2 )
-        eval $wp_docker ${WP_CLI_NAME} wp option patch ${item} ${keypath}  ${value} --format=plaintext
-        echo"${!item}"
+        eval $wp_docker ${WP_CLI_NAME} wp option patch ${item} ${keypath}  ${value} --format=json
     done
+
 }
 
 main() {
@@ -114,6 +125,7 @@ main() {
         export force=0
         main
     elif [[ ! -f './.WP_INITIALIZED'  ]]; then
+        #addDNSEntry
         addVirtualHost
         cp ./docker-compose.template docker-compose.yml
         replaceVarFile "./docker-compose.yml" '${WP_NAME}' ${WP_NAME}
