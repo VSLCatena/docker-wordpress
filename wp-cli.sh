@@ -90,6 +90,7 @@ initWP() {
     [  $(docker-compose ps -a | grep ${WP_DB_NAME} | wc -l ) -eq 0 ]  && docker-compose up --no-start ${WP_DB_NAME} ${WP_NAME} && docker-compose start  ${WP_DB_NAME} ${WP_NAME}
     [[ ${WP_HTTPS} == 1 ]] && WP_PROT="https" || WP_PROT="http"
     sleep 15
+    eval $wp_docker ${WP_CLI_NAME} wp cli update --yes 
     eval $wp_docker ${WP_CLI_NAME} wp core install --url="${WP_PROT}://${WP_URL}" --title=${WP_TITLE} --admin_user=${WP_ADMIN} --admin_password=${WP_ADMIN_PASSWORD} --admin_email=${WP_ADMIN_EMAIL}
     pluginsWP
     sleep 15
@@ -224,23 +225,24 @@ esac
 shift
 done
 
-commands=$init+$purge+$update #exclusive commands
+commands=$(($init+$purge+$update)) #exclusive commands
 
 if [[ $commands == 1 ]]; then
-
     if [[ $init == 1 ]]; then
         main
     elif [[ $purge == 1 ]]; then
         purge
     elif [[ $update == 1 ]]; then
         update
-    else
-    if [[  eval $wp_docker ${WP_CLI_NAME} wp core is-installed ]]; then
-        eval ${wp_docker} ${WP_CLI_NAME} "$@"
+    fi
+elif [[ $commands == 0 ]]; then
+    [[ $(eval $wp_docker ${WP_CLI_NAME} wp core is-installed)=="" ]] && error=0 || error=1
+    if [[ $error  == 0 ]]; then
+        [[ -z "$@" ]] && com="wp cli info" || com="$@"
+        eval ${wp_docker} ${WP_CLI_NAME} ${com};
     else 
         echo "Unable to execute, WP not installed" 
     fi
-
 else
     echo "Too many commands given"
 fi
