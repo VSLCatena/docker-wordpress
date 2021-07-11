@@ -95,7 +95,7 @@ initWP() {
     pluginsWP
     sleep 15
     #optionsWP
-    #  $wp_docker user create $username $mail --role=administrator
+    eval $wp_docker ${WP_CLI_NAME} user create ${WP_USER} ${WP_USER_EMAIL} --role=administrator --user_pass=${WP_USER_PASSWORD}
 }
 
 pluginsWP() {
@@ -149,6 +149,7 @@ purge() {
 }
 
 update() {
+    eval $wp_docker ${WP_CLI_NAME} wp cli update --yes 
     eval $wp_docker ${WP_CLI_NAME} wp core check-update
     eval $wp_docker ${WP_CLI_NAME} wp core update
     eval $wp_docker ${WP_CLI_NAME} wp core update-db
@@ -187,7 +188,7 @@ main() {
 # -l is for long options with double dash like --version
 # the comma separates different long options
 # -a is for long options with single dash like -version
-options=$(getopt -l "help,force,verbose,init" -o "hViF"  -- "$@")
+options=$(getopt -l "help,force,verbose,init,purge,update" -o "hViF"  -- "$@")
 
 # set --:
 # If no arguments follow this option, then the positional parameters are unset. Otherwise, the positional parameters
