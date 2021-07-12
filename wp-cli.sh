@@ -12,6 +12,7 @@ export rebuilt=0
 export force=0
 export update=0
 export purge=0
+export options=0
 
 showHelp() {
 # `cat << EOF` This means that cat should stop reading when EOF is detected
@@ -33,6 +34,10 @@ Optional commands: force, verbose
 -i,        --init               Rebuild container and files based on .env
 
 -U,        --update             Update core db and plugins
+
+-O         --options            Updates options from .env
+
+-G         --get-options        retrieves options from WP
 
 If none given, "$@" is executed
 
@@ -94,7 +99,7 @@ initWP() {
     eval $wp_docker ${WP_CLI_NAME} wp core install --url="${WP_PROT}://${WP_URL}" --title=${WP_TITLE} --admin_user=${WP_ADMIN} --admin_password=${WP_ADMIN_PASSWORD} --admin_email=${WP_ADMIN_EMAIL}
     pluginsWP
     sleep 15
-    #optionsWP
+    optionsWP
     eval $wp_docker ${WP_CLI_NAME} user create ${WP_USER} ${WP_USER_EMAIL} --role=administrator --user_pass=${WP_USER_PASSWORD}
 }
 
@@ -108,21 +113,27 @@ optionsWP() {
     #keyvalue
     for item in "${!WPO_@}"
     do
-        key=${item} | cut -c4
+        key=$( echo ${item} | cut -c5- )
         value=$( echo ${!item} | cut -d ',' -f1 )
-        eval $wp_docker ${WP_CLI_NAME} wp option update ${key} ${value}  --format=json
+        eval $wp_docker ${WP_CLI_NAME} wp option update ${key} ${value}
     done
 
-    #objects
+    #objects WPOP_key="item keypath value"
     for item in "${!WPOP_@}"
     do
-        item=${item} | cut -c5
-        keypath=$( echo ${!item} | cut -d ',' -f1 )
+        key=$( echo ${item} | cut -c6- )
+        path=$( echo ${!item} | cut -d ',' -f1 )
         value=$( echo ${!item} | cut -d ',' -f2 )
-        eval $wp_docker ${WP_CLI_NAME} wp option patch ${item} ${keypath}  ${value} --format=json
+        eval $wp_docker ${WP_CLI_NAME} wp option patch ${path} ${key} ${value} --format=json
     done
 
 }
+
+getWPoptions() {
+    eval $wp_docker ${WP_CLI_NAME} wp option list --format=json > wp_options.json
+}
+
+
 
 cleanWP() {
         docker-compose rm --force --stop -v
@@ -188,7 +199,7 @@ main() {
 # -l is for long options with double dash like --version
 # the comma separates different long options
 # -a is for long options with single dash like -version
-options=$(getopt -l "help,force,verbose,init,purge,update" -o "hViF"  -- "$@")
+options=$(getopt -l "help,force,verbose,init,purge,update,options,get-options" -o "hViFPUOG"  -- "$@")
 
 # set --:
 # If no arguments follow this option, then the positional parameters are unset. Otherwise, the positional parameters
@@ -217,7 +228,14 @@ case $1 in
     ;;
 -U|--update)
     export update=1
-    ;;    
+    ;;
+-O|--options)
+    export options=1
+    ;;
+-G|--get-options)
+    export get_options=1
+    ;;
+
 --)
     shift
     break
@@ -226,7 +244,7 @@ esac
 shift
 done
 
-commands=$(($init+$purge+$update)) #exclusive commands
+commands=$(($init+$purge+$update+$options+$get_options)) #exclusive commands
 
 if [[ $commands == 1 ]]; then
     if [[ $init == 1 ]]; then
@@ -235,6 +253,10 @@ if [[ $commands == 1 ]]; then
         purge
     elif [[ $update == 1 ]]; then
         update
+    elif [[ $options == 1 ]]; then
+        optionsWP
+    elif [[ $get_options == 1 ]]; then
+        getWPoptions
     fi
 elif [[ $commands == 0 ]]; then
     [[ $(eval $wp_docker ${WP_CLI_NAME} wp core is-installed)=="" ]] && error=0 || error=1
