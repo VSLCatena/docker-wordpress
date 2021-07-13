@@ -3,7 +3,7 @@
 # filename: wp-cli.sh
 # author: @Kipjr
 
-
+jq_docker="docker run --rm jq"
 wp_docker="docker-compose run --no-deps --rm --user=33:33 -e HOME=/tmp"
 source ./.env
 export version=0
@@ -12,8 +12,8 @@ export rebuilt=0
 export force=0
 export update=0
 export purge=0
-export options=0
-
+export option=0
+export getoptions=0
 showHelp() {
 # `cat << EOF` This means that cat should stop reading when EOF is detected
 cat << EOF
@@ -35,9 +35,9 @@ Optional commands: force, verbose
 
 -U,        --update             Update core db and plugins
 
--O         --options            Updates options from .env
+-O         --option            Updates options from .env
 
--G         --get-options        retrieves options from WP
+-G         --getoptions        retrieves options from WP
 
 If none given, "$@" is executed
 
@@ -118,19 +118,23 @@ optionsWP() {
         eval $wp_docker ${WP_CLI_NAME} wp option update ${key} ${value}
     done
 
+
+    #eval $jq_docker "$@"
+
     #objects WPOP_key="item keypath value"
     for item in "${!WPOP_@}"
     do
         key=$( echo ${item} | cut -c6- )
-        path=$( echo ${!item} | cut -d ',' -f1 )
-        value=$( echo ${!item} | cut -d ',' -f2 )
-        eval $wp_docker ${WP_CLI_NAME} wp option patch ${path} ${key} ${value} --format=json
+        path=$( echo ${!item} | cut -d ';' -f1 )
+        value=$( echo ${!item} | cut -d ';' -f2 )
+        eval $wp_docker ${WP_CLI_NAME} wp option patch update ${path} ${key} '${value}' --format=json
     done
 
 }
 
 getWPoptions() {
-    eval $wp_docker ${WP_CLI_NAME} wp option list --format=json > wp_options.json
+    eval $wp_docker ${WP_CLI_NAME} wp option list --format=json --unserialize > wp_options.json
+    eval $wp_docker ${WP_CLI_NAME} wp option list --format=yaml --unserialize > wp_options.yaml
 }
 
 
@@ -158,9 +162,19 @@ purge() {
         exit 0
     fi
 }
+createJQimage(){
+    cat <<EOF > /tmp/Dockerfile
+FROM alpine
+RUN apk add --update --no-cache jq
+CMD ["sh"]
+EOF
+    docker build /tmp --tag jq
+}
+
+
 
 update() {
-    eval $wp_docker ${WP_CLI_NAME} wp cli update --yes 
+    docker pull wordpress:cli-php8.0
     eval $wp_docker ${WP_CLI_NAME} wp core check-update
     eval $wp_docker ${WP_CLI_NAME} wp core update
     eval $wp_docker ${WP_CLI_NAME} wp core update-db
@@ -199,7 +213,7 @@ main() {
 # -l is for long options with double dash like --version
 # the comma separates different long options
 # -a is for long options with single dash like -version
-options=$(getopt -l "help,force,verbose,init,purge,update,options,get-options" -o "hViFPUOG"  -- "$@")
+options=$(getopt -l "help,force,verbose,init,purge,update,option,getoptions" -o "hViFPUOG"  -- "$@")
 
 # set --:
 # If no arguments follow this option, then the positional parameters are unset. Otherwise, the positional parameters
@@ -229,11 +243,11 @@ case $1 in
 -U|--update)
     export update=1
     ;;
--O|--options)
-    export options=1
+-O|--option)
+    export option=1
     ;;
--G|--get-options)
-    export get_options=1
+-G|--getoptions)
+    export getoptions=1
     ;;
 
 --)
@@ -244,7 +258,7 @@ esac
 shift
 done
 
-commands=$(($init+$purge+$update+$options+$get_options)) #exclusive commands
+commands=$(($init+$purge+$update+$option+$getoptions)) #exclusive commands
 
 if [[ $commands == 1 ]]; then
     if [[ $init == 1 ]]; then
@@ -253,9 +267,9 @@ if [[ $commands == 1 ]]; then
         purge
     elif [[ $update == 1 ]]; then
         update
-    elif [[ $options == 1 ]]; then
+    elif [[ $option == 1 ]]; then
         optionsWP
-    elif [[ $get_options == 1 ]]; then
+    elif [[ $getoptions == 1 ]]; then
         getWPoptions
     fi
 elif [[ $commands == 0 ]]; then
