@@ -3,7 +3,8 @@
 # filename: wp-cli.sh
 # author: @Kipjr
 
-jq_docker="docker run --rm jq"
+[[ $(dpkg -l | grep -w jq | wc -l) == 0 ]] &&  apt install -y jq 
+
 wp_docker="docker-compose run --no-deps --rm --user=33:33 -e HOME=/tmp"
 source ./.env
 export version=0
@@ -14,6 +15,8 @@ export update=0
 export purge=0
 export option=0
 export getoptions=0
+
+
 showHelp() {
 # `cat << EOF` This means that cat should stop reading when EOF is detected
 cat << EOF
@@ -162,14 +165,7 @@ purge() {
         exit 0
     fi
 }
-createJQimage(){
-    cat <<EOF > /tmp/Dockerfile
-FROM alpine
-RUN apk add --update --no-cache jq
-CMD ["sh"]
-EOF
-    docker build /tmp --tag jq
-}
+
 
 
 
@@ -203,6 +199,8 @@ main() {
         echo "" 
     fi
 }
+
+
 #####
 #####  Execution of commands
 #####
