@@ -3,10 +3,11 @@
 # filename: wp-cli.sh
 # author: @Kipjr
 
-[[ $(dpkg -l | grep -w jq | wc -l) == 0 ]] &&  apt install -y jq 
-
+[[ $(dpkg -l | grep -w jq | wc -l) == 0 ]] &&  apt install -y jq #install jq cuz important
+jq -r '.env|keys[] as $k | "\($k)=\"\(.[$k])\""'  env.json > .env #parse env.json to .env
+source .env #import .env
 wp_docker="docker-compose run --no-deps --rm --user=33:33 -e HOME=/tmp"
-source ./.env
+
 export version=0
 export verbose=0
 export rebuilt=0
@@ -103,7 +104,7 @@ initWP() {
     pluginsWP
     sleep 15
     optionsWP
-    eval $wp_docker ${WP_CLI_NAME} user create ${WP_USER} ${WP_USER_EMAIL} --role=administrator --user_pass=${WP_USER_PASSWORD}
+    eval $wp_docker ${WP_CLI_NAME} wp user create ${WP_USER} ${WP_USER_EMAIL} --role=administrator --user_pass=${WP_USER_PASSWORD}
 }
 
 pluginsWP() {
@@ -112,27 +113,25 @@ pluginsWP() {
 }
 
 optionsWP() {
-
+    keylen=$(jq -r '.wp_options| length' env.json)
     #keyvalue
-    for item in "${!WPO_@}"
+    for ((i=0;i<$keylen;i++)); 
     do
-        key=$( echo ${item} | cut -c5- )
-        value=$( echo ${!item} | cut -d ',' -f1 )
-        eval $wp_docker ${WP_CLI_NAME} wp option update ${key} ${value}
+        #jq -r --argjson i $i '.wp_options[$i] | {(.option_name):.option_value}' ./env.json >/tmp/var.json #write option to disk
+        jq -r --raw-output --compact-output --argjson i $i '.wp_options[$i] | .option_value' ./env.json >/tmp/var.json #write option to disk
+        #sed -i 's/"//g' /tmp/var.json
+        key=$(jq -r --argjson i $i '.wp_options[$i] |  {(.option_name):.option_value}|to_entries|.[].key' ./env.json) #get option key
+        eval $wp_docker ${WP_CLI_NAME} wp option update --debug --autoload=yes $key < /tmp/var.json 
     done
 
-
-    #eval $jq_docker "$@"
-
-    #objects WPOP_key="item keypath value"
-    for item in "${!WPOP_@}"
-    do
-        key=$( echo ${item} | cut -c6- )
-        path=$( echo ${!item} | cut -d ';' -f1 )
-        value=$( echo ${!item} | cut -d ';' -f2 )
-        eval $wp_docker ${WP_CLI_NAME} wp option patch update ${path} ${key} '${value}' --format=json
-    done
-
+ # jq -r '.wp_options as $in | .wp_options| reduce paths(scalars) as $path ({}; . + { ( [$in[$path[0]].option_name]+$path[2:]  | map(tostring) | join(" ")): $in| getpath($path) } as $data | $data | map_values(select( $in[$path[0]].option_name != ($in|getpath($path)))))' env.json
+ # "wp_mail_smtp smtp host": "smtp-relay.gmail.com",
+ #jq -r '.wp_options[] as $arr|{($arr.option_name):$arr.option_value}' env.json
+ #[
+ #{
+ #   itsec-storage:
+ #       {values}
+ #}]
 }
 
 getWPoptions() {
