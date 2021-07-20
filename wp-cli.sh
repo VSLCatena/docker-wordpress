@@ -99,7 +99,7 @@ initWP() {
     [  $(docker-compose ps -a | grep ${WP_DB_NAME} | wc -l ) -eq 0 ]  && docker-compose up --no-start ${WP_DB_NAME} ${WP_NAME} && docker-compose start  ${WP_DB_NAME} ${WP_NAME}
     [[ ${WP_HTTPS} == 1 ]] && WP_PROT="https" || WP_PROT="http"
     sleep 15
-    eval $wp_docker ${WP_CLI_NAME} wp cli update --yes 
+    docker pull wordpress:cli-php8.0
     eval $wp_docker ${WP_CLI_NAME} wp core install --url="${WP_PROT}://${WP_URL}" --title=${WP_TITLE} --admin_user=${WP_ADMIN} --admin_password=${WP_ADMIN_PASSWORD} --admin_email=${WP_ADMIN_EMAIL}
     pluginsWP
     sleep 15
