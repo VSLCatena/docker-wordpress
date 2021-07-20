@@ -118,10 +118,10 @@ optionsWP() {
     for ((i=0;i<$keylen;i++)); 
     do
         #jq -r --argjson i $i '.wp_options[$i] | {(.option_name):.option_value}' ./env.json >/tmp/var.json #write option to disk
-        jq -r --raw-output --compact-output --argjson i $i '.wp_options[$i] | .option_value' ./env.json >/tmp/var.json #write option to disk
+        jq  --compact-output --argjson i $i '.wp_options[$i] | .option_value' ./env.json >/tmp/var.json #write option to disk
         #sed -i 's/"//g' /tmp/var.json
         key=$(jq -r --argjson i $i '.wp_options[$i] |  {(.option_name):.option_value}|to_entries|.[].key' ./env.json) #get option key
-        eval $wp_docker ${WP_CLI_NAME} wp option update --debug --autoload=yes $key < /tmp/var.json 
+        eval $wp_docker ${WP_CLI_NAME} wp option update --format=json --debug --autoload=yes $key < /tmp/var.json 
     done
 
  # jq -r '.wp_options as $in | .wp_options| reduce paths(scalars) as $path ({}; . + { ( [$in[$path[0]].option_name]+$path[2:]  | map(tostring) | join(" ")): $in| getpath($path) } as $data | $data | map_values(select( $in[$path[0]].option_name != ($in|getpath($path)))))' env.json
