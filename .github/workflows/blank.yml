@@ -13,15 +13,26 @@ on:
 
 # A workflow run is made up of one or more jobs that can run sequentially or in parallel
 jobs:
-  # This workflow contains a single job called "build"
-  build:
-    # The type of runner that the job will run on
+  vm-job:
     runs-on: ubuntu-latest
 
-    # Steps represent a sequence of tasks that will be executed as part of the job
+    services:
+      mongodb:
+        image: mongo
+        ports:
+        # will assign a random free host port
+        - 3306/tcp
+
     steps:
       # Checks-out your repository under $GITHUB_WORKSPACE, so your job can access it
       - uses: actions/checkout@v2
+      - run: npm ci
+      - run: node client.js
+        env:
+        # use localhost for the host here because we are running the job on the VM.
+        # If we were running the job on in a container this would be mongodb
+          MONGODB_HOST: localhost
+          MONGODB_PORT: ${{ job.services.mongodb.ports[3306] }} # get randomly assigned published port
 
       # Runs a single command using the runners shell
       - name: Run a one-line script
