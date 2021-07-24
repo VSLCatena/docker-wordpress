@@ -29,3 +29,4 @@ node_modules/
 .docker-compose.yml
 .env
 .env.json
+logs/

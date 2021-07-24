@@ -12,6 +12,7 @@ export version=0
 export verbose=0
 export rebuilt=0
 export force=0
+export create=0
 export update=0
 export purge=0
 export option=0
@@ -21,10 +22,10 @@ export getoptions=0
 showHelp() {
 # `cat << EOF` This means that cat should stop reading when EOF is detected
 cat << EOF
-Usage: ./wp-cli.sh -[iPU] [-VF] 
+Usage: ./wp-cli.sh -[iPcOUGU] [-VF] 
 Install Wordpress and configure for Docker
 
-Exclusive commands: purge, init, update, help, {other}
+Exclusive commands: purge, init, create, update, help, {other}
 Optional commands: force, verbose
 
 -h,        --help               Display help
@@ -36,6 +37,8 @@ Optional commands: force, verbose
 -P,        --purge              Purge all data (needs confirm)
 
 -i,        --init               Rebuild container and files based on .env
+
+-c,        --create             Rebuild files based on .env
 
 -U,        --update             Update core db and plugins
 
@@ -49,6 +52,22 @@ If none given, "$@" is executed
 EOF
 # EOF is found above and hence cat command stops reading. This is equivalent to echo but much neater when printing out.
 }
+
+writeLog() {
+    today=$(date +"%Y%m%d")
+    ts=$(date +"%Y-%m-%d %H:%M:%S:%N")
+    level=${2:-INFO} #Trace,Debug,Info,Warn,Error,Critical and None
+    if [[ ${WP_LOG} == "1"  ]];then
+        [[ ! -d "./logs/" ]] && mkdir -p ./logs/
+        [[ ! -f "./logs/${today}.log" ]] && touch "./logs/{today}.log" 
+        echo "${ts} ${level} $1" >> "./logs/${today}.log" 
+    fi
+    echo "${ts} ${level} $1"
+
+}
+
+
+
 addDNSentry() {
     #body='{
     #    "login": "test-user",
@@ -74,7 +93,7 @@ addVirtualHost() {
         replaceVarFile "${WP_URL}.conf" WP_URL "${WP_URL}"
         cp ${WP_URL}.conf /etc/apache2/sites-enabled/${WP_URL}.conf
     else
-        echo "apache not installed"  
+        writeLog "apache not installed"
     fi
 }
 
@@ -90,7 +109,7 @@ getCert() {
         domain=$1
         certbot certonly -d $domain
     else
-        echo "certbot not installed"
+        writeLog "certbot not installed"
     fi
 }
 
@@ -121,7 +140,7 @@ optionsWP() {
         jq  --compact-output --argjson i $i '.wp_options[$i] | .option_value' ./env.json >/tmp/var.json #write option to disk
         #sed -i 's/"//g' /tmp/var.json
         key=$(jq -r --argjson i $i '.wp_options[$i] |  {(.option_name):.option_value}|to_entries|.[].key' ./env.json) #get option key
-        eval $wp_docker ${WP_CLI_NAME} wp option update --format=json --debug --autoload=yes $key < /tmp/var.json 
+        eval $wp_docker ${WP_CLI_NAME} wp option update --format=json --autoload=yes $key < /tmp/var.json 
     done
 
  # jq -r '.wp_options as $in | .wp_options| reduce paths(scalars) as $path ({}; . + { ( [$in[$path[0]].option_name]+$path[2:]  | map(tostring) | join(" ")): $in| getpath($path) } as $data | $data | map_values(select( $in[$path[0]].option_name != ($in|getpath($path)))))' env.json
@@ -144,11 +163,10 @@ getWPoptions() {
 cleanWP() {
         docker-compose rm --force --stop -v
         docker volume prune --force  --filter label=com.docker.compose.project=$(basename "$PWD")
-        rm ./"${WP_URL}.conf"
-        rm ./.WP_INITIALIZED
-        rm ./docker-compose.yml
-        rm /etc/apache2/sites
-        rm /etc/apache2/sites-enabled/${WP_URL}.conf
+        [[ -f "./${WP_URL}.conf" ]] &&  rm ./"${WP_URL}.conf"
+        [[ -f "./.WP_INITIALIZED" ]] && rm  "./.WP_INITIALIZED"
+        [[ -f "./docker-compose.yml" ]] && rm "./docker-compose.yml"
+        [[ -f "/etc/apache2/sites-enabled/${WP_URL}.conf" ]] && rm  "/etc/apache2/sites-enabled/${WP_URL}.conf"
 }
 purge() {
     read -p "Are you sure (Y/n)" q
@@ -175,10 +193,18 @@ update() {
     eval $wp_docker ${WP_CLI_NAME} wp core update-db
     eval $wp_docker ${WP_CLI_NAME} wp plugin update --all
 }
+createFiles() {
+    addVirtualHost
+    cp ./docker-compose.template docker-compose.yml
+    replaceVarFile "./docker-compose.yml" '${WP_NAME}' ${WP_NAME}
+    replaceVarFile "./docker-compose.yml" '${WP_DB_NAME}' ${WP_DB_NAME}
+    replaceVarFile "./docker-compose.yml" '${WP_CLI_NAME}' ${WP_CLI_NAME}
+}
+
 
 main() {
     if [[ -f './.WP_INITIALIZED' && $force == 0 ]]; then
-        echo "already initialised"
+        writeLog  "already initialised"
         exit 0
     elif [ $force == 1 ]; then
         cleanWP
@@ -186,14 +212,8 @@ main() {
         main
     elif [[ ! -f './.WP_INITIALIZED'  ]]; then
         #addDNSEntry
-        addVirtualHost
-        cp ./docker-compose.template docker-compose.yml
-        replaceVarFile "./docker-compose.yml" '${WP_NAME}' ${WP_NAME}
-        replaceVarFile "./docker-compose.yml" '${WP_DB_NAME}' ${WP_DB_NAME}
-        replaceVarFile "./docker-compose.yml" '${WP_CLI_NAME}' ${WP_CLI_NAME}
-        replaceVarFile "./docker-compose.yml" '${WP_SUBNET}' ${WP_SUBNET}
-        initWP
-        touch ./.WP_INITIALIZED
+        createFiles
+        initWP touch ./.WP_INITIALIZED
     else
         echo "" 
     fi
@@ -210,7 +230,7 @@ main() {
 # -l is for long options with double dash like --version
 # the comma separates different long options
 # -a is for long options with single dash like -version
-options=$(getopt -l "help,force,verbose,init,purge,update,option,getoptions" -o "hViFPUOG"  -- "$@")
+options=$(getopt -l "help,force,verbose,init,create,purge,update,option,getoptions" -o "hViFPUOGc"  -- "$@")
 
 # set --:
 # If no arguments follow this option, then the positional parameters are unset. Otherwise, the positional parameters
@@ -234,6 +254,9 @@ case $1 in
 -i|--init)
     export init=1
     ;;
+-c|--create)
+    export create=1
+    ;;
 -P|--purge)
     export purge=1
     ;;
@@ -255,7 +278,7 @@ esac
 shift
 done
 
-commands=$(($init+$purge+$update+$option+$getoptions)) #exclusive commands
+commands=$(($init+$create+$purge+$update+$option+$getoptions)) #exclusive commands
 
 if [[ $commands == 1 ]]; then
     if [[ $init == 1 ]]; then
@@ -266,6 +289,8 @@ if [[ $commands == 1 ]]; then
         update
     elif [[ $option == 1 ]]; then
         optionsWP
+    elif [[ $create == 1 ]]; then
+        createFiles
     elif [[ $getoptions == 1 ]]; then
         getWPoptions
     fi
@@ -275,8 +300,8 @@ elif [[ $commands == 0 ]]; then
         [[ -z "$@" ]] && com="wp cli info" || com="$@"
         eval ${wp_docker} ${WP_CLI_NAME} ${com};
     else 
-        echo "Unable to execute, WP not installed" 
+        writeLog "Unable to execute, WP not installed" "ERROR"
     fi
 else
-    echo "Too many commands given"
+    writeLog  "Too many commands given" "ERROR"
 fi
