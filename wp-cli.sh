@@ -93,7 +93,7 @@ addVirtualHost() {
         replaceVarFile "${WP_URL}.conf" WP_URL "${WP_URL}"
         cp ${WP_URL}.conf /etc/apache2/sites-enabled/${WP_URL}.conf
     else
-        writeLog "apache not installed"
+        writeLog "apache not installed" "WARN"
     fi
 }
 
@@ -102,6 +102,7 @@ replaceVarFile() {
     find=$2
     replace=$3
     sed -i "s/${find}/${replace}/g" $file
+    writeLog "${find} → ${replace} in ${file}" "TRACE"
 }
 
 getCert() {
@@ -109,13 +110,13 @@ getCert() {
         domain=$1
         certbot certonly -d $domain
     else
-        writeLog "certbot not installed"
+        writeLog "certbot not installed" "WARN"
     fi
 }
 
 initWP() {
     #docker ps -q -f name={container Name}
-    [  $(docker-compose ps -a | grep ${WP_DB_NAME} | wc -l ) -eq 0 ]  && docker-compose up --no-start ${WP_DB_NAME} ${WP_NAME} && docker-compose start  ${WP_DB_NAME} ${WP_NAME}
+    [  $(docker-compose ps -a | grep ${WP_DB_NAME} | wc -l ) -eq 0 ]  && docker-compose up --no-start ${WP_DB_NAME} ${WP_NAME} && docker-compose start  ${WP_DB_NAME} ${WP_NAME} 
     [[ ${WP_HTTPS} == 1 ]] && WP_PROT="https" || WP_PROT="http"
     sleep 15
     docker pull wordpress:cli-php8.0
@@ -187,10 +188,15 @@ purge() {
 
 
 update() {
+    writeLog "Updating wp-cli" "INFO"
     docker pull wordpress:cli-php8.0
+    writeLog "Checking for wp updates" "INFO"
     eval $wp_docker ${WP_CLI_NAME} wp core check-update
+    writeLog "Updating wp core" "INFO"
     eval $wp_docker ${WP_CLI_NAME} wp core update
+    writeLog "Updating wp db" "INFO"
     eval $wp_docker ${WP_CLI_NAME} wp core update-db
+    writeLog "Updating wp plugins" "INFO"
     eval $wp_docker ${WP_CLI_NAME} wp plugin update --all
 }
 createFiles() {
@@ -231,7 +237,7 @@ main() {
 # the comma separates different long options
 # -a is for long options with single dash like -version
 options=$(getopt -l "help,force,verbose,init,create,purge,update,option,getoptions" -o "hViFPUOGc"  -- "$@")
-
+writeLog "wp-cli.sh ${options}" "INFO"
 # set --:
 # If no arguments follow this option, then the positional parameters are unset. Otherwise, the positional parameters
 # are set to the arguments, even if some of them begin with a ‘-’.
