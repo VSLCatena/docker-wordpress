@@ -14,4 +14,4 @@ jobs:
 
     steps:
     - uses: actions/checkout@v1
-    - run: cp ci.env.json env.json && ./wp-cli.sh --init --verbose --force
+    - run: cp ci.env.json env.json && ./wp-cli.sh --init --force
