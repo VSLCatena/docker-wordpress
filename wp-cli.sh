@@ -1,5 +1,5 @@
 #!/bin/bash
-
+set +x 
 # filename: wp-cli.sh
 # author: @Kipjr
 
@@ -53,17 +53,58 @@ EOF
 # EOF is found above and hence cat command stops reading. This is equivalent to echo but much neater when printing out.
 }
 
+
 writeLog() {
-    today=$(date +"%Y%m%d")
-    ts=$(date +"%Y-%m-%d %H:%M:%S:%N")
-    level=${2:-INFO} #Trace,Debug,Info,Warn,Error,Critical and None
+ #usage:  ls -lat asdf 1> /tmp/stdout.log 2> /tmp/stderr.log; cat /tmp/stdout.log | writeLog INFO; cat /tmp/stderr.log | writeLog ERR
+ #usage2:  ls -lat asdf | writeLog Info
+
+    IFS=$''    
+    TODAY=$(date +"%Y%m%d")
+    TS=$(date +"%Y-%m-%d %H:%M:%S:%N")
+    NC='\033[0m'         #no color
+    LEVEL=${1:-INFO} #TRACE,DEBUG,INFO,WARN,ERROR,CRITICAL AND NONE
+    case $LEVEL in
+        CRIT)
+            COLOR='\033[1;35m' #LPURPLE #CRIT
+        ;;
+        ERR)
+            COLOR='\033[0;31m' #RED #ERR
+        ;;
+        WARN)
+            COLOR='\033[1;33m' #YELLOW #WARN
+        ;;
+        INFO)
+            COLOR='\033[1;37m' #WHITE #INFO
+        ;;
+        DEBUG)
+            COLOR='\033[0;36m' #CYAN #DEBUG
+        ;;
+        TRACE)
+            COLOR='\033[0;32m' #GREEN #TRACE
+        ;;        
+        *)
+            COLOR=$NC
+        ;;
+    esac
+    
+    #precreate logfile if needed
     if [[ ${WP_LOG} == "1"  ]];then
         [[ ! -d "./logs/" ]] && mkdir -p ./logs/
-        [[ ! -f "./logs/${today}.log" ]] && touch "./logs/{today}.log" 
-        echo "${ts} ${level} $1" >> "./logs/${today}.log" 
+        [[ ! -f "./logs/${TODAY}.log" ]] && touch "./logs/${TODAY}.log"
     fi
-    echo "${ts} ${level} $1"
-
+    
+    #parse lines and write to file if needed
+    while read -ers  inputLine; do
+        lines=("${lines[@]}" "$inputLine") 
+    done
+    if [[ ${#lines[@]} -gt 0 && $( echo ${lines[@]} | wc -m) -gt 1  ]]; then
+        for i in "${lines[@]}"; do
+            [[ ${WP_LOG} == "1"  ]] && printf "%s ${RED}[%s]${NC} %s\n" ${TS} "${LEVEL}" "$i" >> "./logs/${TODAY}.log" 
+            printf "%s ${COLOR}[%s]${NC} %s\n" ${TS} "${LEVEL}" "$i" 
+        done
+    fi
+    COLOR=$NC
+    IFS=$' \t\n'
 }
 
 
@@ -93,7 +134,7 @@ addVirtualHost() {
         replaceVarFile "${WP_URL}.conf" WP_URL "${WP_URL}"
         cp ${WP_URL}.conf /etc/apache2/sites-enabled/${WP_URL}.conf
     else
-        writeLog "apache not installed" "WARN"
+        echo "apache not installed" | writeLog ERR
     fi
 }
 
@@ -102,34 +143,37 @@ replaceVarFile() {
     find=$2
     replace=$3
     sed -i "s/${find}/${replace}/g" $file
-    writeLog "${find} → ${replace} in ${file}" "TRACE"
+    echo "${find} → ${replace} in ${file}" | writeLog TRACE
 }
 
 getCert() {
     if [ -d '/etc/letsencrypt' ]; then
         domain=$1
-        certbot certonly -d $domain
+        certbot certonly -d $domain  1> /tmp/stdout.log 2> /tmp/stderr.log; cat /tmp/stdout.log | writeLog INFO; cat /tmp/stderr.log | writeLog ERR
     else
-        writeLog "certbot not installed" "WARN"
+        echo "certbot not installed" | writeLog WARN
     fi
 }
 
 initWP() {
     #docker ps -q -f name={container Name}
-    [  $(docker-compose ps -a | grep ${WP_DB_NAME} | wc -l ) -eq 0 ]  && docker-compose up --no-start ${WP_DB_NAME} ${WP_NAME} && docker-compose start  ${WP_DB_NAME} ${WP_NAME} 
+    if [[  $(docker-compose ps -a | grep ${WP_DB_NAME} | wc -l ) -eq 0 ]]; then
+        docker-compose up --no-start ${WP_DB_NAME} ${WP_NAME}  1> /tmp/stdout.log 2> /tmp/stderr.log; cat /tmp/stdout.log | writeLog INFO; cat /tmp/stderr.log | writeLog ERR
+        docker-compose start  ${WP_DB_NAME} ${WP_NAME}   1> /tmp/stdout.log 2> /tmp/stderr.log; cat /tmp/stdout.log | writeLog INFO; cat /tmp/stderr.log | writeLog ERR
+    fi
     [[ ${WP_HTTPS} == 1 ]] && WP_PROT="https" || WP_PROT="http"
     sleep 15
-    docker pull wordpress:cli-php8.0
-    eval $wp_docker ${WP_CLI_NAME} wp core install --url="${WP_PROT}://${WP_URL}" --title=${WP_TITLE} --admin_user=${WP_ADMIN} --admin_password=${WP_ADMIN_PASSWORD} --admin_email=${WP_ADMIN_EMAIL}
+    docker pull wordpress:cli-php8.0  1> /tmp/stdout.log 2> /tmp/stderr.log; cat /tmp/stdout.log | writeLog INFO; cat /tmp/stderr.log | writeLog ERR
+    eval $wp_docker ${WP_CLI_NAME} wp core install --url="${WP_PROT}://${WP_URL}" --title=${WP_TITLE} --admin_user=${WP_ADMIN} --admin_password=${WP_ADMIN_PASSWORD} --admin_email=${WP_ADMIN_EMAIL} 1> /tmp/stdout.log 2> /tmp/stderr.log; cat /tmp/stdout.log | writeLog INFO; cat /tmp/stderr.log | writeLog ERR
     pluginsWP
     sleep 15
     optionsWP
-    eval $wp_docker ${WP_CLI_NAME} wp user create ${WP_USER} ${WP_USER_EMAIL} --role=administrator --user_pass=${WP_USER_PASSWORD}
+    eval $wp_docker ${WP_CLI_NAME} wp user create ${WP_USER} ${WP_USER_EMAIL} --role=administrator --user_pass=${WP_USER_PASSWORD} 1> /tmp/stdout.log 2> /tmp/stderr.log; cat /tmp/stdout.log | writeLog INFO; cat /tmp/stderr.log | writeLog ERR
 }
 
 pluginsWP() {
-    eval $wp_docker ${WP_CLI_NAME} wp plugin install --activate ${WP_PLUGINS}
-    eval $wp_docker ${WP_CLI_NAME} wp plugin auto-updates enable --all #awaiting update to implement this function
+    eval $wp_docker ${WP_CLI_NAME} wp plugin install --activate ${WP_PLUGINS} 1> /tmp/stdout.log 2> /tmp/stderr.log; cat /tmp/stdout.log | writeLog INFO; cat /tmp/stderr.log | writeLog ERR
+    eval $wp_docker ${WP_CLI_NAME} wp plugin auto-updates enable --all 1> /tmp/stdout.log 2> /tmp/stderr.log; cat /tmp/stdout.log | writeLog INFO; cat /tmp/stderr.log | writeLog ERR #awaiting update to implement this function
 }
 
 optionsWP() {
@@ -141,7 +185,7 @@ optionsWP() {
         jq  --compact-output --argjson i $i '.wp_options[$i] | .option_value' ./env.json >/tmp/var.json #write option to disk
         #sed -i 's/"//g' /tmp/var.json
         key=$(jq -r --argjson i $i '.wp_options[$i] |  {(.option_name):.option_value}|to_entries|.[].key' ./env.json) #get option key
-        eval $wp_docker ${WP_CLI_NAME} wp option update --format=json --autoload=yes $key < /tmp/var.json 
+        eval $wp_docker ${WP_CLI_NAME} wp option update --format=json --autoload=yes $key < /tmp/var.json  1> /tmp/stdout.log 2> /tmp/stderr.log; cat /tmp/stdout.log | writeLog INFO; cat /tmp/stderr.log | writeLog ERR
     done
 
  # jq -r '.wp_options as $in | .wp_options| reduce paths(scalars) as $path ({}; . + { ( [$in[$path[0]].option_name]+$path[2:]  | map(tostring) | join(" ")): $in| getpath($path) } as $data | $data | map_values(select( $in[$path[0]].option_name != ($in|getpath($path)))))' env.json
@@ -155,15 +199,16 @@ optionsWP() {
 }
 
 getWPoptions() {
-    eval $wp_docker ${WP_CLI_NAME} wp option list --format=json --unserialize > wp_options.json
-    eval $wp_docker ${WP_CLI_NAME} wp option list --format=yaml --unserialize > wp_options.yaml
+    eval $wp_docker ${WP_CLI_NAME} wp option list --format=json --unserialize > wp_options.json 1> /tmp/stdout.log 2> /tmp/stderr.log; cat /tmp/stdout.log | writeLog INFO; cat /tmp/stderr.log | writeLog ERR
+    eval $wp_docker ${WP_CLI_NAME} wp option list --format=yaml --unserialize > wp_options.yaml 1> /tmp/stdout.log 2> /tmp/stderr.log; cat /tmp/stdout.log | writeLog INFO; cat /tmp/stderr.log | writeLog ERR
+    echo  "Exported to wp_options.json/yaml" | writeLog "INFO"
 }
 
 
 
 cleanWP() {
-        docker-compose rm --force --stop -v
-        docker volume prune --force  --filter label=com.docker.compose.project=$(basename "$PWD")
+        docker-compose rm --force --stop -v  1> /tmp/stdout.log 2> /tmp/stderr.log; cat /tmp/stdout.log | writeLog INFO; cat /tmp/stderr.log | writeLog ERR
+        docker volume prune --force  --filter label=com.docker.compose.project=$(basename "$PWD")  1> /tmp/stdout.log 2> /tmp/stderr.log; cat /tmp/stdout.log | writeLog INFO; cat /tmp/stderr.log | writeLog ERR
         [[ -f "./${WP_URL}.conf" ]] &&  rm ./"${WP_URL}.conf"
         [[ -f "./.WP_INITIALIZED" ]] && rm  "./.WP_INITIALIZED"
         [[ -f "./docker-compose.yml" ]] && rm "./docker-compose.yml"
@@ -173,13 +218,13 @@ purge() {
     read -p "Are you sure (Y/n)" q
     if [[ $q == "Y" ]]; then
         cleanWP
-        echo "You need to manually remove DNS entry"
+        echo "You need to manually remove DNS entry"  | writeLog "INFO"
         read -p "Delete folder (Y/n)" f
         if [[ $f == "Y" ]]; then
             rm ../$(basename "$PWD")
         fi
     else 
-        echo "Action aborted"
+        echo "Action aborted"  | writeLog "INFO"
         exit 0
     fi
 }
@@ -188,16 +233,16 @@ purge() {
 
 
 update() {
-    writeLog "Updating wp-cli" "INFO"
-    docker pull wordpress:cli-php8.0
-    writeLog "Checking for wp updates" "INFO"
-    eval $wp_docker ${WP_CLI_NAME} wp core check-update
-    writeLog "Updating wp core" "INFO"
-    eval $wp_docker ${WP_CLI_NAME} wp core update
-    writeLog "Updating wp db" "INFO"
-    eval $wp_docker ${WP_CLI_NAME} wp core update-db
-    writeLog "Updating wp plugins" "INFO"
-    eval $wp_docker ${WP_CLI_NAME} wp plugin update --all
+    echo "Updating wp-cli" | writeLog "INFO"
+    docker pull wordpress:cli-php8.0 
+    echo "Checking for wp updates"  | writeLog "INFO"
+    eval $wp_docker ${WP_CLI_NAME} wp core check-update 1> /tmp/stdout.log 2> /tmp/stderr.log; cat /tmp/stdout.log | writeLog INFO; cat /tmp/stderr.log | writeLog ERR
+    echo "Updating wp core"  | writeLog "INFO"
+    eval $wp_docker ${WP_CLI_NAME} wp core update 1> /tmp/stdout.log 2> /tmp/stderr.log; cat /tmp/stdout.log | writeLog INFO; cat /tmp/stderr.log | writeLog ERR
+    echo "Updating wp db" | writeLog "INFO"
+    eval $wp_docker ${WP_CLI_NAME} wp core update-db 1> /tmp/stdout.log 2> /tmp/stderr.log; cat /tmp/stdout.log | writeLog INFO; cat /tmp/stderr.log | writeLog ERR
+    echo "Updating wp plugins"  | writeLog "INFO"
+    eval $wp_docker ${WP_CLI_NAME} wp plugin update --all  1> /tmp/stdout.log 2> /tmp/stderr.log; cat /tmp/stdout.log | writeLog INFO; cat /tmp/stderr.log | writeLog ERR
 }
 createFiles() {
     addVirtualHost
@@ -210,7 +255,7 @@ createFiles() {
 
 main() {
     if [[ -f './.WP_INITIALIZED' && $force == 0 ]]; then
-        writeLog  "already initialised"
+        echo  "already initialised" | writeLog "INFO"
         exit 0
     elif [ $force == 1 ]; then
         cleanWP
@@ -219,7 +264,8 @@ main() {
     elif [[ ! -f './.WP_INITIALIZED'  ]]; then
         #addDNSEntry
         createFiles
-        initWP touch ./.WP_INITIALIZED
+        initWP 
+        touch ./.WP_INITIALIZED
     else
         echo "" 
     fi
@@ -237,7 +283,7 @@ main() {
 # the comma separates different long options
 # -a is for long options with single dash like -version
 options=$(getopt -l "help,force,verbose,init,create,purge,update,option,getoptions" -o "hViFPUOGc"  -- "$@")
-writeLog "wp-cli.sh ${options}" "INFO"
+echo "wp-cli.sh ${options}" | writeLog "DEBUG"
 # set --:
 # If no arguments follow this option, then the positional parameters are unset. Otherwise, the positional parameters
 # are set to the arguments, even if some of them begin with a ‘-’.
@@ -306,8 +352,8 @@ elif [[ $commands == 0 ]]; then
         [[ -z "$@" ]] && com="wp cli info" || com="$@"
         eval ${wp_docker} ${WP_CLI_NAME} ${com};
     else 
-        writeLog "Unable to execute, WP not installed" "ERROR"
+        echo "Unable to execute, WP not installed" | writeLog "ERR"
     fi
 else
-    writeLog  "Too many commands given" "ERROR"
+    echo  "Too many commands given"| writeLog "ERR"
 fi
