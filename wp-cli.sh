@@ -86,7 +86,8 @@ writeLog() {
             COLOR=$NC
         ;;
     esac
-    
+    printf -v LEVEL %-5.5s "$LEVEL" #justify
+
     #precreate logfile if needed
     if [[ ${WP_LOG} == "1"  ]];then
         [[ ! -d "./logs/" ]] && mkdir -p ./logs/
