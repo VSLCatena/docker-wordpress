@@ -6,7 +6,7 @@
 # For more information on Codacy Analysis CLI in general, see
 # https://github.com/codacy/codacy-analysis-cli.
 
-name: Codacy Security Scan
+name: Codacy Security Scan 2
 
 on:
   push:
@@ -18,7 +18,7 @@ on:
     - cron: '24 8 * * 2'
 
 jobs:
-  codacy-security-scan:
+  codacy-security-scan2:
     name: Codacy Security Scan
     runs-on: ubuntu-latest
     steps:
