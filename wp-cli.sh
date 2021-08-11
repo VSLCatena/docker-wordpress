@@ -99,7 +99,7 @@ writeLog() {
     while read -ers  inputLine; do
         lines=("${lines[@]}" "$inputLine") 
     done
-    if [[ ${#lines[@]} -gt 0 && $( echo ${lines[@]} | wc -m) -gt 1  ]]; then
+    if [[ ${#lines[@]} -gt 0 && $( echo "${lines[@]}" | wc -m) -gt 1  ]]; then
         for i in "${lines[@]}"; do
             [[ ${WP_LOG} == "1"  ]] && printf "%s ${RED}[%s]${NC} %s\n" ${TS} "${LEVEL}" "$i" >> "./logs/${TODAY}.log" 
             printf "%s ${COLOR}[%s]${NC} %s\n" ${TS} "${LEVEL}" "$i" 
