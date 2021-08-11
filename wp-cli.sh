@@ -181,7 +181,7 @@ pluginsWP() {
 optionsWP() {
     keylen=$(jq -r '.wp_options| length' env.json)
     #keyvalue
-    for ((i=0;i<$keylen;i++)); 
+    for ((i=0;i<keylen;i++)); 
     do
         #jq -r --argjson i $i '.wp_options[$i] | {(.option_name):.option_value}' ./env.json >/tmp/var.json #write option to disk
         jq  --compact-output --argjson i $i '.wp_options[$i] | .option_value' ./env.json >/tmp/var.json #write option to disk
@@ -332,7 +332,7 @@ esac
 shift
 done
 
-commands=$(($init+$create+$purge+$update+$option+$getoptions)) #exclusive commands
+commands=$((init+create+purge+update+option+getoptions)) #exclusive commands
 
 if [[ $commands == 1 ]]; then
     if [[ $init == 1 ]]; then
