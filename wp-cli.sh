@@ -349,7 +349,7 @@ if [[ $commands == 1 ]]; then
         getWPoptions
     fi
 elif [[ $commands == 0 ]]; then
-    [[ $(eval $wp_docker ${WP_CLI_NAME} wp core is-installed)=="" ]] && error=0 || error=1
+    [[ $(eval $wp_docker ${WP_CLI_NAME} wp core is-installed) == "" ]] && error=0 || error=1
     if [[ $error  == 0 ]]; then
         [[ -z "$@" ]] && com="wp cli info" || com="$@"
         eval ${wp_docker} ${WP_CLI_NAME} ${com};
