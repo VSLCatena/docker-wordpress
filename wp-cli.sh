@@ -55,7 +55,8 @@ EOF
 
 
 writeLog() {
- #usage:  ls -lat asdf 1> /tmp/stdout.log 2> /tmp/stderr.log; cat /tmp/stdout.log | writeLog INFO; cat /tmp/stderr.log | writeLog ERR
+ #usage:   ls -lat asdf 1> /tmp/stdout.log 2> /tmp/stderr.log; writeLog INFO < /tmp/stdout.log; writeLog ERR < /tmp/stderr.log
+ #usage1:  ls -lat asdf 1> /tmp/stdout.log 2> /tmp/stderr.log;  writeLog INFO < /tmp/stdout.log; writeLog ERR < /tmp/stderr.log
  #usage2:  ls -lat asdf | writeLog Info
 
     IFS=$''    
@@ -150,7 +151,7 @@ replaceVarFile() {
 getCert() {
     if [ -d '/etc/letsencrypt' ]; then
         domain=$1
-        certbot certonly -d $domain  1> /tmp/stdout.log 2> /tmp/stderr.log; cat /tmp/stdout.log | writeLog INFO; cat /tmp/stderr.log | writeLog ERR
+        certbot certonly -d $domain  1> /tmp/stdout.log 2> /tmp/stderr.log; writeLog INFO < /tmp/stdout.log; writeLog ERR < /tmp/stderr.log
     else
         echo "certbot not installed" | writeLog WARN
     fi
@@ -159,22 +160,22 @@ getCert() {
 initWP() {
     #docker ps -q -f name={container Name}
     if [[  $(docker-compose ps -a | grep ${WP_DB_NAME} | wc -l ) -eq 0 ]]; then
-        docker-compose up --no-start ${WP_DB_NAME} ${WP_NAME}  1> /tmp/stdout.log 2> /tmp/stderr.log; cat /tmp/stdout.log | writeLog INFO; cat /tmp/stderr.log | writeLog ERR
-        docker-compose start  ${WP_DB_NAME} ${WP_NAME}   1> /tmp/stdout.log 2> /tmp/stderr.log; cat /tmp/stdout.log | writeLog INFO; cat /tmp/stderr.log | writeLog ERR
+        docker-compose up --no-start ${WP_DB_NAME} ${WP_NAME}  1> /tmp/stdout.log 2> /tmp/stderr.log; writeLog INFO < /tmp/stdout.log; writeLog ERR < /tmp/stderr.log
+        docker-compose start  ${WP_DB_NAME} ${WP_NAME}   1> /tmp/stdout.log 2> /tmp/stderr.log; writeLog INFO < /tmp/stdout.log; writeLog ERR < /tmp/stderr.log
     fi
     [[ ${WP_HTTPS} == 1 ]] && WP_PROT="https" || WP_PROT="http"
     sleep 15
-    docker pull wordpress:cli-php8.0  1> /tmp/stdout.log 2> /tmp/stderr.log; cat /tmp/stdout.log | writeLog INFO; cat /tmp/stderr.log | writeLog ERR
-    eval $wp_docker ${WP_CLI_NAME} wp core install --url="${WP_PROT}://${WP_URL}" --title=${WP_TITLE} --admin_user=${WP_ADMIN} --admin_password=${WP_ADMIN_PASSWORD} --admin_email=${WP_ADMIN_EMAIL} 1> /tmp/stdout.log 2> /tmp/stderr.log; cat /tmp/stdout.log | writeLog INFO; cat /tmp/stderr.log | writeLog ERR
+    docker pull wordpress:cli-php8.0  1> /tmp/stdout.log 2> /tmp/stderr.log; writeLog INFO < /tmp/stdout.log; writeLog ERR < /tmp/stderr.log
+    eval $wp_docker ${WP_CLI_NAME} wp core install --url="${WP_PROT}://${WP_URL}" --title=${WP_TITLE} --admin_user=${WP_ADMIN} --admin_password=${WP_ADMIN_PASSWORD} --admin_email=${WP_ADMIN_EMAIL} 1> /tmp/stdout.log 2> /tmp/stderr.log; writeLog INFO < /tmp/stdout.log; writeLog ERR < /tmp/stderr.log
     pluginsWP
     sleep 15
     optionsWP
-    eval $wp_docker ${WP_CLI_NAME} wp user create ${WP_USER} ${WP_USER_EMAIL} --role=administrator --user_pass=${WP_USER_PASSWORD} 1> /tmp/stdout.log 2> /tmp/stderr.log; cat /tmp/stdout.log | writeLog INFO; cat /tmp/stderr.log | writeLog ERR
+    eval $wp_docker ${WP_CLI_NAME} wp user create ${WP_USER} ${WP_USER_EMAIL} --role=administrator --user_pass=${WP_USER_PASSWORD} 1> /tmp/stdout.log 2> /tmp/stderr.log; writeLog INFO < /tmp/stdout.log; writeLog ERR < /tmp/stderr.log
 }
 
 pluginsWP() {
-    eval $wp_docker ${WP_CLI_NAME} wp plugin install --activate ${WP_PLUGINS} 1> /tmp/stdout.log 2> /tmp/stderr.log; cat /tmp/stdout.log | writeLog INFO; cat /tmp/stderr.log | writeLog ERR
-    eval $wp_docker ${WP_CLI_NAME} wp plugin auto-updates enable --all 1> /tmp/stdout.log 2> /tmp/stderr.log; cat /tmp/stdout.log | writeLog INFO; cat /tmp/stderr.log | writeLog ERR #awaiting update to implement this function
+    eval $wp_docker ${WP_CLI_NAME} wp plugin install --activate ${WP_PLUGINS} 1> /tmp/stdout.log 2> /tmp/stderr.log; writeLog INFO < /tmp/stdout.log; writeLog ERR < /tmp/stderr.log
+    eval $wp_docker ${WP_CLI_NAME} wp plugin auto-updates enable --all 1> /tmp/stdout.log 2> /tmp/stderr.log; writeLog INFO < /tmp/stdout.log; writeLog ERR < /tmp/stderr.log #awaiting update to implement this function
 }
 
 optionsWP() {
@@ -186,7 +187,7 @@ optionsWP() {
         jq  --compact-output --argjson i $i '.wp_options[$i] | .option_value' ./env.json >/tmp/var.json #write option to disk
         #sed -i 's/"//g' /tmp/var.json
         key=$(jq -r --argjson i $i '.wp_options[$i] |  {(.option_name):.option_value}|to_entries|.[].key' ./env.json) #get option key
-        eval $wp_docker ${WP_CLI_NAME} wp option update --format=json --autoload=yes $key < /tmp/var.json  1> /tmp/stdout.log 2> /tmp/stderr.log; cat /tmp/stdout.log | writeLog INFO; cat /tmp/stderr.log | writeLog ERR
+        eval $wp_docker ${WP_CLI_NAME} wp option update --format=json --autoload=yes $key < /tmp/var.json  1> /tmp/stdout.log 2> /tmp/stderr.log; writeLog INFO < /tmp/stdout.log; writeLog ERR < /tmp/stderr.log
     done
 
  # jq -r '.wp_options as $in | .wp_options| reduce paths(scalars) as $path ({}; . + { ( [$in[$path[0]].option_name]+$path[2:]  | map(tostring) | join(" ")): $in| getpath($path) } as $data | $data | map_values(select( $in[$path[0]].option_name != ($in|getpath($path)))))' env.json
@@ -200,16 +201,16 @@ optionsWP() {
 }
 
 getWPoptions() {
-    eval $wp_docker ${WP_CLI_NAME} wp option list --format=json --unserialize > wp_options.json 1> /tmp/stdout.log 2> /tmp/stderr.log; cat /tmp/stdout.log | writeLog INFO; cat /tmp/stderr.log | writeLog ERR
-    eval $wp_docker ${WP_CLI_NAME} wp option list --format=yaml --unserialize > wp_options.yaml 1> /tmp/stdout.log 2> /tmp/stderr.log; cat /tmp/stdout.log | writeLog INFO; cat /tmp/stderr.log | writeLog ERR
+    eval $wp_docker ${WP_CLI_NAME} wp option list --format=json --unserialize > wp_options.json 1> /tmp/stdout.log 2> /tmp/stderr.log; writeLog INFO < /tmp/stdout.log; writeLog ERR < /tmp/stderr.log
+    eval $wp_docker ${WP_CLI_NAME} wp option list --format=yaml --unserialize > wp_options.yaml 1> /tmp/stdout.log 2> /tmp/stderr.log; writeLog INFO < /tmp/stdout.log; writeLog ERR < /tmp/stderr.log
     echo  "Exported to wp_options.json/yaml" | writeLog "INFO"
 }
 
 
 
 cleanWP() {
-        docker-compose rm --force --stop -v  1> /tmp/stdout.log 2> /tmp/stderr.log; cat /tmp/stdout.log | writeLog INFO; cat /tmp/stderr.log | writeLog ERR
-        docker volume prune --force  --filter label=com.docker.compose.project=$(basename "$PWD")  1> /tmp/stdout.log 2> /tmp/stderr.log; cat /tmp/stdout.log | writeLog INFO; cat /tmp/stderr.log | writeLog ERR
+        docker-compose rm --force --stop -v  1> /tmp/stdout.log 2> /tmp/stderr.log; writeLog INFO < /tmp/stdout.log; writeLog ERR < /tmp/stderr.log
+        docker volume prune --force  --filter label=com.docker.compose.project=$(basename "$PWD")  1> /tmp/stdout.log 2> /tmp/stderr.log; writeLog INFO < /tmp/stdout.log; writeLog ERR < /tmp/stderr.log
         [[ -f "./${WP_URL}.conf" ]] &&  rm ./"${WP_URL}.conf"
         [[ -f "./.WP_INITIALIZED" ]] && rm  "./.WP_INITIALIZED"
         [[ -f "./docker-compose.yml" ]] && rm "./docker-compose.yml"
@@ -237,13 +238,13 @@ update() {
     echo "Updating wp-cli" | writeLog "INFO"
     docker pull wordpress:cli-php8.0 
     echo "Checking for wp updates"  | writeLog "INFO"
-    eval $wp_docker ${WP_CLI_NAME} wp core check-update 1> /tmp/stdout.log 2> /tmp/stderr.log; cat /tmp/stdout.log | writeLog INFO; cat /tmp/stderr.log | writeLog ERR
+    eval $wp_docker ${WP_CLI_NAME} wp core check-update 1> /tmp/stdout.log 2> /tmp/stderr.log; writeLog INFO < /tmp/stdout.log; writeLog ERR < /tmp/stderr.log
     echo "Updating wp core"  | writeLog "INFO"
-    eval $wp_docker ${WP_CLI_NAME} wp core update 1> /tmp/stdout.log 2> /tmp/stderr.log; cat /tmp/stdout.log | writeLog INFO; cat /tmp/stderr.log | writeLog ERR
+    eval $wp_docker ${WP_CLI_NAME} wp core update 1> /tmp/stdout.log 2> /tmp/stderr.log; writeLog INFO < /tmp/stdout.log; writeLog ERR < /tmp/stderr.log
     echo "Updating wp db" | writeLog "INFO"
-    eval $wp_docker ${WP_CLI_NAME} wp core update-db 1> /tmp/stdout.log 2> /tmp/stderr.log; cat /tmp/stdout.log | writeLog INFO; cat /tmp/stderr.log | writeLog ERR
+    eval $wp_docker ${WP_CLI_NAME} wp core update-db 1> /tmp/stdout.log 2> /tmp/stderr.log; writeLog INFO < /tmp/stdout.log; writeLog ERR < /tmp/stderr.log
     echo "Updating wp plugins"  | writeLog "INFO"
-    eval $wp_docker ${WP_CLI_NAME} wp plugin update --all  1> /tmp/stdout.log 2> /tmp/stderr.log; cat /tmp/stdout.log | writeLog INFO; cat /tmp/stderr.log | writeLog ERR
+    eval $wp_docker ${WP_CLI_NAME} wp plugin update --all  1> /tmp/stdout.log 2> /tmp/stderr.log; writeLog INFO < /tmp/stdout.log; writeLog ERR < /tmp/stderr.log
 }
 createFiles() {
     addVirtualHost
