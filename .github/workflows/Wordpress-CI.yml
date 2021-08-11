@@ -1,4 +1,4 @@
-name: Test WP containers & configure
+name: Build
 
 on:
   push:
