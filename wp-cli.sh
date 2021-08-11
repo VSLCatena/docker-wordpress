@@ -3,7 +3,7 @@ set +x
 # filename: wp-cli.sh
 # author: @Kipjr
 
-[[ $(dpkg -l | grep -w jq | wc -l) == 0 ]] &&  apt install -y jq #install jq cuz important
+[[ $(dpkg -l | grep -w jq -c) == 0 ]] &&  apt install -y jq #install jq cuz important
 jq -r '.env|keys[] as $k | "\($k)=\"\(.[$k])\""'  env.json > .env #parse env.json to .env
 source .env #import .env
 wp_docker="docker-compose run --no-deps --rm --user=33:33 -e HOME=/tmp"
@@ -159,7 +159,7 @@ getCert() {
 
 initWP() {
     #docker ps -q -f name={container Name}
-    if [[  $(docker-compose ps -a | grep ${WP_DB_NAME} | wc -l ) -eq 0 ]]; then
+    if [[  $(docker-compose ps -a | grep ${WP_DB_NAME} -c ) -eq 0 ]]; then
         docker-compose up --no-start ${WP_DB_NAME} ${WP_NAME}  1> /tmp/stdout.log 2> /tmp/stderr.log; writeLog INFO < /tmp/stdout.log; writeLog ERR < /tmp/stderr.log
         docker-compose start  ${WP_DB_NAME} ${WP_NAME}   1> /tmp/stdout.log 2> /tmp/stderr.log; writeLog INFO < /tmp/stdout.log; writeLog ERR < /tmp/stderr.log
     fi
