@@ -210,7 +210,7 @@ getWPoptions() {
 
 cleanWP() {
         docker-compose rm --force --stop -v  1> /tmp/stdout.log 2> /tmp/stderr.log; writeLog INFO < /tmp/stdout.log; writeLog ERR < /tmp/stderr.log
-        docker volume prune --force  --filter label=com.docker.compose.project=$(basename "$PWD")  1> /tmp/stdout.log 2> /tmp/stderr.log; writeLog INFO < /tmp/stdout.log; writeLog ERR < /tmp/stderr.log
+        docker volume prune --force  --filter label=com.docker.compose.project="$(basename $PWD)"  1> /tmp/stdout.log 2> /tmp/stderr.log; writeLog INFO < /tmp/stdout.log; writeLog ERR < /tmp/stderr.log
         [[ -f "./${WP_URL}.conf" ]] &&  rm ./"${WP_URL}.conf"
         [[ -f "./.WP_INITIALIZED" ]] && rm  "./.WP_INITIALIZED"
         [[ -f "./docker-compose.yml" ]] && rm "./docker-compose.yml"
@@ -223,7 +223,7 @@ purge() {
         echo "You need to manually remove DNS entry"  | writeLog "INFO"
         read -p "Delete folder (Y/n)" f
         if [[ $f == "Y" ]]; then
-            rm ../$(basename "$PWD")
+            rm "../$(basename $PWD)"
         fi
     else 
         echo "Action aborted"  | writeLog "INFO"
