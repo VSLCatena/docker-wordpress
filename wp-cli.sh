@@ -129,7 +129,7 @@ addDNSentry() {
 
 
 addVirtualHost() {
-    if [ -d '/etc/apache2/sites-available' ]; then
+    if [ -d '/etc/apache2/sites-available' ] && [ ${WP_APACHE} =="1" ] ; then
         getCert ${WP_URL}
         cp ./server.virtualhost.conf "${WP_URL}.conf"
         replaceVarFile "${WP_URL}.conf" WP_URL "${WP_URL}"
@@ -149,7 +149,7 @@ replaceVarFile() {
 }
 
 getCert() {
-    if [ -d '/etc/letsencrypt' ]; then
+    if [ -d '/etc/letsencrypt' ] && [ ${WP_LETSENCRYPT} == 1 ]; then
         domain=$1
         certbot certonly -d $domain  1> /tmp/stdout.log 2> /tmp/stderr.log; writeLog INFO < /tmp/stdout.log; writeLog ERR < /tmp/stderr.log
     else
