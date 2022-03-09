@@ -166,7 +166,7 @@ addVirtualHost() {
     echo FUNCTION_addVirtualHost | writeLog TRACE
     if [[ -d '/etc/apache2/sites-available' && ${WP_APACHE} -eq "1" ]];then
         cp ./server.virtualhost.conf "${WP_URL}.conf"
-        replaceVarFile "${WP_URL}.conf" WP_URL "${WP_URL}"
+        replaceVarFile "${WP_URL}.conf" WP_PORT "${WP_PORT}"
         replaceVarFile "${WP_URL}.conf" WP_URL "${WP_URL}"
         cp ${WP_URL}.conf /etc/apache2/sites-available/${WP_URL}.conf
         ln -s /etc/apache2/sites-available/${WP_URL}.conf /etc/apache2/sites-enabled/${WP_URL}.conf
