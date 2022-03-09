@@ -289,7 +289,7 @@ exitScript() {
 ###
 ### Cleanup
 ###
-    for i in $(cat ./.env | cut -d "=" -f 1);do
+    for i in $(cat ./.env | cut -d ' ' -f2 |cut -d "=" -f 1);do
       unset $i
     done
     IFS=IFS_OLD
