@@ -11,22 +11,7 @@ set +x
 ###
 
 [[ $(dpkg -l | grep -w jq -c) -eq 0 ]] &&  apt install -y jq #install jq cuz important
-#jq -r '.env|keys[] as $k | "\($k)=\"\(.[$k])\""'  env.json > .env #parse env.json to .env
-#jq -r '.env|keys[] as $k | "\($k)=\(.[$k])"'  ./env.json > ./.env #parse env.json to .env , no quotes
 
-#option1a (difficult)
-#
-#declare -a arrVar #declare empty array
-#for row in $(jq -r '.env[] | arrays  | map(.) | .[] ' ./env.json);do arrVar+=(\"$row\"); done # "better-wp-security" "redirection" "cookie-notice" "disable-comments" "google-calendar-events" "wp-mail-smtp" "maintenance"
-#echo "(" ${arrVar[@]} ")" >> .env
-#option1b
-#need to get all non-array items
-
-#options2 (easy)
-#
-#jq -r '.env|keys[] as $k | "\($k)=\(.[$k])"'  ./env.json | sed 's/\[/\(/' | sed  's/\]/\)/' | sed  's/\,/ /g' > ./.env  # change brackets and komma
-
-#option3 (easiest)
 # https://raw.githubusercontent.com/decknroll/json2env/main/json2env
 #
 # parse env.json, from key .env and out to .env
@@ -286,19 +271,13 @@ update() {
 }
 createFiles() {
     addVirtualHost
-    
     #backup old docker-compose.yml
     if [[ -f "./docker-compose.yml" ]]; then
         TS=$(date +"%Y-%m-%d_%H%M%S%N") #2022-03-08_1017000000
         mv docker-compose.yml docker-compose.${TS}.bak
     fi
     cp ./docker-compose.template docker-compose.yml #create new docker-compose.yml
-    replaceVarFile "./docker-compose.yml" '${WP_NAME}' ${WP_NAME}
-    replaceVarFile "./docker-compose.yml" '${WP_DB_NAME}' ${WP_DB_NAME}
-    replaceVarFile "./docker-compose.yml" '${WP_CLI_NAME}' ${WP_CLI_NAME}
-#    for i in $(cat ./.env); do
-#      export "$i"
-#    done;
+    echo "\${variables} → \$WP_ENV in docker-compose.yml" | writeLog INFO
     envsubst < ./docker-compose.template > docker-compose.yml
 
 }
