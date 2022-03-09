@@ -1,11 +1,45 @@
 #!/bin/bash
-set +x 
+IFS_OLD=$IFS
+IFS=$'\n'
+set +x
 # filename: wp-cli.sh
 # author: @Kipjr
 
-[[ $(dpkg -l | grep -w jq -c) == 0 ]] &&  apt install -y jq #install jq cuz important
-jq -r '.env|keys[] as $k | "\($k)=\"\(.[$k])\""'  env.json > .env #parse env.json to .env
-source .env #import .env
+
+###
+### Refresh .env based on env.json
+###
+
+[[ $(dpkg -l | grep -w jq -c) -eq 0 ]] &&  apt install -y jq #install jq cuz important
+#jq -r '.env|keys[] as $k | "\($k)=\"\(.[$k])\""'  env.json > .env #parse env.json to .env
+#jq -r '.env|keys[] as $k | "\($k)=\(.[$k])"'  ./env.json > ./.env #parse env.json to .env , no quotes
+
+#option1a (difficult)
+#
+#declare -a arrVar #declare empty array
+#for row in $(jq -r '.env[] | arrays  | map(.) | .[] ' ./env.json);do arrVar+=(\"$row\"); done # "better-wp-security" "redirection" "cookie-notice" "disable-comments" "google-calendar-events" "wp-mail-smtp" "maintenance"
+#echo "(" ${arrVar[@]} ")" >> .env
+#option1b
+#need to get all non-array items
+
+#options2 (easy)
+#
+#jq -r '.env|keys[] as $k | "\($k)=\(.[$k])"'  ./env.json | sed 's/\[/\(/' | sed  's/\]/\)/' | sed  's/\,/ /g' > ./.env  # change brackets and komma
+
+#option3 (easiest)
+# https://raw.githubusercontent.com/decknroll/json2env/main/json2env
+#
+# parse env.json, from key .env and out to .env
+bash ./json2env --array -x --force -o .env -p .env env.json
+
+###
+### remove any WP_ env
+###
+for i in $( env | grep 'WP_' | cut -d "=" -f 1 );do
+   unset $i
+done
+
+source ./.env #import .env
 wp_docker="docker-compose run --no-deps --rm --user=33:33 -e HOME=/tmp"
 
 export version=0
@@ -18,6 +52,9 @@ export purge=0
 export option=0
 export getoptions=0
 
+###
+###  Functions
+###
 
 showHelp() {
 # `cat << EOF` This means that cat should stop reading when EOF is detected
@@ -59,7 +96,7 @@ writeLog() {
  #usage1:  ls -lat asdf 1> /tmp/stdout.log 2> /tmp/stderr.log;  writeLog INFO < /tmp/stdout.log; writeLog ERR < /tmp/stderr.log
  #usage2:  ls -lat asdf | writeLog Info
 
-    IFS=$''    
+    IFS=$''
     TODAY=$(date +"%Y%m%d")
     TS=$(date +"%Y-%m-%d %H:%M:%S:%N")
     NC='\033[0m'         #no color
@@ -82,26 +119,26 @@ writeLog() {
         ;;
         TRACE)
             COLOR='\033[0;32m' #GREEN #TRACE
-        ;;        
+        ;;
         *)
             COLOR=$NC
         ;;
     esac
     printf -v LEVEL %-5.5s "$LEVEL" #justify
-    
+
     #precreate logfile if needed
-    if [[ ${WP_LOG} == "1"  ]];then
+    if [[ ${WP_LOG} -eq "1"  ]];then
         [[ ! -d "./logs/" ]] && mkdir -p ./logs/
         [[ ! -f "./logs/${TODAY}.log" ]] && touch "./logs/${TODAY}.log"
     fi
-    
+
     #parse lines and write to file if needed
     while read -ers  inputLine; do
         lines=("${lines[@]}" "$inputLine") 
     done
     if [[ ${#lines[@]} -gt 0 && $( echo "${lines[@]}" | wc -m) -gt 1  ]]; then
         for i in "${lines[@]}"; do
-            [[ ${WP_LOG} == "1"  ]] && printf "%s ${RED}[%s]${NC} %s\n" ${TS} "${LEVEL}" "$i" >> "./logs/${TODAY}.log" 
+            [[ ${WP_LOG} -eq "1"  ]] && printf "%s ${RED}[%s]${NC} %s\n" ${TS} "${LEVEL}" "$i" >> "./logs/${TODAY}.log" 
             printf "%s ${COLOR}[%s]${NC} %s\n" ${TS} "${LEVEL}" "$i" 
         done
     fi
@@ -129,7 +166,7 @@ addDNSentry() {
 
 
 addVirtualHost() {
-    if [ -d '/etc/apache2/sites-available' ] && [ ${WP_APACHE} =="1" ] ; then
+    if [[ -d '/etc/apache2/sites-available' && ${WP_APACHE} -eq "1" ]];then
         getCert ${WP_URL}
         cp ./server.virtualhost.conf "${WP_URL}.conf"
         replaceVarFile "${WP_URL}.conf" WP_URL "${WP_URL}"
@@ -149,7 +186,7 @@ replaceVarFile() {
 }
 
 getCert() {
-    if [ -d '/etc/letsencrypt' ] && [ ${WP_LETSENCRYPT} == 1 ]; then
+    if [[ -d '/etc/letsencrypt' && ${WP_LETSENCRYPT} -eq 1 ]]; then
         domain=$1
         certbot certonly -d $domain  1> /tmp/stdout.log 2> /tmp/stderr.log; writeLog INFO < /tmp/stdout.log; writeLog ERR < /tmp/stderr.log
     else
@@ -163,7 +200,7 @@ initWP() {
         docker-compose up --no-start ${WP_DB_NAME} ${WP_NAME}  1> /tmp/stdout.log 2> /tmp/stderr.log; writeLog INFO < /tmp/stdout.log; writeLog ERR < /tmp/stderr.log
         docker-compose start  ${WP_DB_NAME} ${WP_NAME}   1> /tmp/stdout.log 2> /tmp/stderr.log; writeLog INFO < /tmp/stdout.log; writeLog ERR < /tmp/stderr.log
     fi
-    [[ ${WP_HTTPS} == 1 ]] && WP_PROT="https" || WP_PROT="http"
+    [[ ${WP_HTTPS} -eq 1 ]] && WP_PROT="https" || WP_PROT="http"
     sleep 15
     docker pull wordpress:cli-php8.0  1> /tmp/stdout.log 2> /tmp/stderr.log; writeLog INFO < /tmp/stdout.log; writeLog ERR < /tmp/stderr.log
     eval $wp_docker ${WP_CLI_NAME} wp core install --url="${WP_PROT}://${WP_URL}" --title=${WP_TITLE} --admin_user=${WP_ADMIN} --admin_password=${WP_ADMIN_PASSWORD} --admin_email=${WP_ADMIN_EMAIL} 1> /tmp/stdout.log 2> /tmp/stderr.log; writeLog INFO < /tmp/stdout.log; writeLog ERR < /tmp/stderr.log
@@ -174,7 +211,7 @@ initWP() {
 }
 
 pluginsWP() {
-    eval $wp_docker ${WP_CLI_NAME} wp plugin install --activate ${WP_PLUGINS} 1> /tmp/stdout.log 2> /tmp/stderr.log; writeLog INFO < /tmp/stdout.log; writeLog ERR < /tmp/stderr.log
+    eval $wp_docker ${WP_CLI_NAME} wp plugin install --activate ${WP_PLUGINS[@]} 1> /tmp/stdout.log 2> /tmp/stderr.log; writeLog INFO < /tmp/stdout.log; writeLog ERR < /tmp/stderr.log
     eval $wp_docker ${WP_CLI_NAME} wp plugin auto-updates enable --all 1> /tmp/stdout.log 2> /tmp/stderr.log; writeLog INFO < /tmp/stdout.log; writeLog ERR < /tmp/stderr.log #awaiting update to implement this function
 }
 
@@ -209,20 +246,21 @@ getWPoptions() {
 
 
 cleanWP() {
+        [[ ! -f  docker-compose.yml ]] && echo "WP is not initialized, please run --create first" && error=1 && exitScript
         docker-compose rm --force --stop -v  1> /tmp/stdout.log 2> /tmp/stderr.log; writeLog INFO < /tmp/stdout.log; writeLog ERR < /tmp/stderr.log
         docker volume prune --force  --filter label=com.docker.compose.project="$(basename $PWD)"  1> /tmp/stdout.log 2> /tmp/stderr.log; writeLog INFO < /tmp/stdout.log; writeLog ERR < /tmp/stderr.log
-        [[ -f "./${WP_URL}.conf" ]] &&  rm ./"${WP_URL}.conf"
+        [[ ${WP_APACHE} -eq "1" && -f "./${WP_URL}.conf" ]] &&  rm ./"${WP_URL}.conf"
         [[ -f "./.WP_INITIALIZED" ]] && rm  "./.WP_INITIALIZED"
         [[ -f "./docker-compose.yml" ]] && rm "./docker-compose.yml"
-        [[ -f "/etc/apache2/sites-enabled/${WP_URL}.conf" ]] && rm  "/etc/apache2/sites-enabled/${WP_URL}.conf"
+        [[ ${WP_APACHE} -eq "1" && -f "/etc/apache2/sites-enabled/${WP_URL}.conf" ]] && rm  "/etc/apache2/sites-enabled/${WP_URL}.conf"
 }
 purge() {
     read -p "Are you sure (Y/n)" q
-    if [[ $q == "Y" ]]; then
+    if [[ $q -eq "Y" ]]; then
         cleanWP
         echo "You need to manually remove DNS entry"  | writeLog "INFO"
         read -p "Delete folder (Y/n)" f
-        if [[ $f == "Y" ]]; then
+        if [[ $f -eq "Y" ]]; then
             rm "../$(basename $PWD)"
         fi
     else 
@@ -248,18 +286,39 @@ update() {
 }
 createFiles() {
     addVirtualHost
-    cp ./docker-compose.template docker-compose.yml
+    
+    #backup old docker-compose.yml
+    if [[ -f "./docker-compose.yml" ]]; then
+        TS=$(date +"%Y-%m-%d_%H%M%S%N") #2022-03-08_1017000000
+        mv docker-compose.yml docker-compose.${TS}.bak
+    fi
+    cp ./docker-compose.template docker-compose.yml #create new docker-compose.yml
     replaceVarFile "./docker-compose.yml" '${WP_NAME}' ${WP_NAME}
     replaceVarFile "./docker-compose.yml" '${WP_DB_NAME}' ${WP_DB_NAME}
     replaceVarFile "./docker-compose.yml" '${WP_CLI_NAME}' ${WP_CLI_NAME}
+#    for i in $(cat ./.env); do
+#      export "$i"
+#    done;
+    envsubst < ./docker-compose.template > docker-compose.yml
+
 }
 
+exitScript() {
+###
+### Cleanup
+###
+    for i in $(cat ./.env | cut -d "=" -f 1);do
+      unset $i
+    done
+    IFS=IFS_OLD
+    exit ${error}
+}
 
 main() {
-    if [[ -f './.WP_INITIALIZED' && $force == 0 ]]; then
+    if [[ -f './.WP_INITIALIZED' && $force -eq 0 ]]; then
         echo  "already initialised" | writeLog "INFO"
         exit 0
-    elif [ $force == 1 ]; then
+    elif [[ $force -eq 1 ]]; then
         cleanWP
         export force=0
         main
@@ -332,30 +391,35 @@ esac
 shift
 done
 
-commands=$((init+create+purge+update+option+getoptions)) #exclusive commands
+commands=$((init+create+purge+update+option+getoptions)) #exclusive commands 
 
-if [[ $commands == 1 ]]; then
-    if [[ $init == 1 ]]; then
+if [[ $commands -eq 1 ]]; then
+    if [[ $init -eq 1 ]]; then
         main
-    elif [[ $purge == 1 ]]; then
+    elif [[ $purge -eq 1 ]]; then
         purge
-    elif [[ $update == 1 ]]; then
+    elif [[ $update -eq 1 ]]; then
         update
-    elif [[ $option == 1 ]]; then
+    elif [[ $option -eq 1 ]]; then
         optionsWP
-    elif [[ $create == 1 ]]; then
+    elif [[ $create -eq 1 ]]; then
         createFiles
-    elif [[ $getoptions == 1 ]]; then
+    elif [[ $getoptions -eq 1 ]]; then
         getWPoptions
     fi
-elif [[ $commands == 0 ]]; then
-    [[ $(eval $wp_docker ${WP_CLI_NAME} wp core is-installed) == "" ]] && error=0 || error=1
-    if [[ $error  == 0 ]]; then
+elif [[ $commands -eq 0 ]];then
+    [[ ! -f  docker-compose.yml ]] && echo "WP is not initialized, please run --create first" && error=1 && exitScript|| error=0
+    [[ $(eval $wp_docker ${WP_CLI_NAME} wp core is-installed) -eq "" ]] && error=0 || error=1
+    if [[ $error  -eq 0 ]]; then
         [[ -z "$@" ]] && com="wp cli info" || com="$*"
         eval ${wp_docker} ${WP_CLI_NAME} ${com};
     else 
         echo "Unable to execute, WP not installed" | writeLog "ERR"
     fi
-else
+
+else #more than one option of command  "init create purge update option getoptions"
     echo  "Too many commands given"| writeLog "ERR"
 fi
+
+exitScript
+
