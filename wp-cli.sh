@@ -152,11 +152,12 @@ addDNSentry() {
 
 addVirtualHost() {
     if [[ -d '/etc/apache2/sites-available' && ${WP_APACHE} -eq "1" ]];then
-        getCert ${WP_URL}
         cp ./server.virtualhost.conf "${WP_URL}.conf"
         replaceVarFile "${WP_URL}.conf" WP_URL "${WP_URL}"
         replaceVarFile "${WP_URL}.conf" WP_URL "${WP_URL}"
-        cp ${WP_URL}.conf /etc/apache2/sites-enabled/${WP_URL}.conf
+        cp ${WP_URL}.conf /etc/apache2/sites-available/${WP_URL}.conf
+        ln -s /etc/apache2/sites-available/${WP_URL}.conf /etc/apache2/sites-enabled/${WP_URL}.conf
+        getCert ${WP_URL}
     else
         echo "apache not installed" | writeLog ERR
     fi
@@ -171,9 +172,11 @@ replaceVarFile() {
 }
 
 getCert() {
-    if [[ -d '/etc/letsencrypt' && ${WP_LETSENCRYPT} -eq 1 ]]; then
-        domain=$1
+    domain=$1
+    if [[ -d '/etc/letsencrypt' && ${WP_LETSENCRYPT} -eq 1 && ${WP_APACHE} -eq "0" ]]; then
         certbot certonly -d $domain  1> /tmp/stdout.log 2> /tmp/stderr.log; writeLog INFO < /tmp/stdout.log; writeLog ERR < /tmp/stderr.log
+    elif [[ -d '/etc/letsencrypt' && ${WP_LETSENCRYPT} -eq 1 && ${WP_APACHE} -eq "1" ]]; then
+        certbot  --apache -d $domain  1> /tmp/stdout.log 2> /tmp/stderr.log; writeLog INFO < /tmp/stdout.log; writeLog ERR < /tmp/stderr.log
     else
         echo "certbot not installed" | writeLog WARN
     fi
