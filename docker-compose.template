@@ -40,7 +40,7 @@ services:
     volumes: 
       - wp-data:/var/www/html 
     environment:
-        WORDPRESS_DEBUG: ${WP_DB_DEBUG}
+        WORDPRESS_DEBUG: ${WP_DEBUG}
         WORDPRESS_DB_HOST: ${WP_DB_NAME}:3306
         WORDPRESS_DB_USER: ${WP_DB_USER}
         WORDPRESS_DB_PASSWORD: ${WP_DB_PASSWORD}
@@ -68,7 +68,7 @@ services:
       - ${WP_DB_NAME}:mysql
     user: "33:33"
     environment:
-        WORDPRESS_DEBUG: ${WP_DB_DEBUG}
+        WORDPRESS_DEBUG: ${WP_DEBUG}
         WORDPRESS_DB_HOST: ${WP_DB_NAME}:3306
         WORDPRESS_DB_USER: ${WP_DB_USER}
         WORDPRESS_DB_PASSWORD: ${WP_DB_PASSWORD}
