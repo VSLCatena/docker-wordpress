@@ -6,6 +6,13 @@ set +x
 # author: @Kipjr
 
 
+if [[ -f /usr/local/bin/docker-compose ]];then
+   dcompose="/usr/local/bin/docker-compose"
+else
+   [[ $(docker compose version) ]] && dcompose="docker compose" || echo "docker compose not installed"
+fi
+
+
 ###
 ### Refresh .env based on env.json
 ###
@@ -15,7 +22,10 @@ set +x
 # https://raw.githubusercontent.com/decknroll/json2env/main/json2env
 #
 # parse env.json, from key .env and out to .env
-bash ./json2env --array -x --force -o .env -p .env env.json
+
+bash ./json2env --array --strict --force -p .env.global -o global.env -x  env.json #names of container
+bash ./json2env --array --strict --force -p .env.script -o script.env -x  env.json #vars required to run script
+bash ./json2env --array --strict --force -p .env.docker -o .env           env.json #vars required for docker (.env and no export)
 
 ###
 ### remove any WP_ env
@@ -24,8 +34,9 @@ for i in $( env | grep 'WP_' | cut -d "=" -f 1 );do
    unset $i
 done
 
-source ./.env #import .env
-wp_docker="docker-compose run --no-deps --rm --user=33:33 -e HOME=/tmp"
+source global.env #import .env
+source script.env #import .env
+wp_docker="${dcompose} run --rm --user=33:33 -e HOME=/tmp"
 
 export version=0
 export verbose=0
@@ -134,7 +145,7 @@ writeLog() {
 
 
 addDNSentry() {
-    echo addDNSentry | writeLog TRACE
+    echo FUNCTION_addDNSentry | writeLog TRACE
     #body='{
     #    "login": "test-user",
     #    "nonce": "98475920834",
@@ -152,7 +163,7 @@ addDNSentry() {
 
 
 addVirtualHost() {
-    echo addVirtualHost | writeLog TRACE
+    echo FUNCTION_addVirtualHost | writeLog TRACE
     if [[ -d '/etc/apache2/sites-available' && ${WP_APACHE} -eq "1" ]];then
         cp ./server.virtualhost.conf "${WP_URL}.conf"
         replaceVarFile "${WP_URL}.conf" WP_URL "${WP_URL}"
@@ -166,7 +177,7 @@ addVirtualHost() {
 }
 
 replaceVarFile() {
-    echo replaceVarFile | writeLog TRACE
+    echo FUNCTION_replaceVarFile | writeLog TRACE
     file=$1
     find=$2
     replace=$3
@@ -175,7 +186,7 @@ replaceVarFile() {
 }
 
 getCert() {
-    echo getCert | writeLog TRACE
+    echo FUNCTION_getCert | writeLog TRACE
     domain=$1
     if [[ -d '/etc/letsencrypt' && ${WP_LETSENCRYPT} -eq 1 && ${WP_APACHE} -eq "0" ]]; then
         certbot certonly -d $domain  1> /tmp/stdout.log 2> /tmp/stderr.log; writeLog INFO < /tmp/stdout.log; writeLog ERR < /tmp/stderr.log
@@ -187,11 +198,11 @@ getCert() {
 }
 
 initWP() {
-    echo initWP | writeLog TRACE
+    echo FUNCTION_initWP | writeLog TRACE
     #docker ps -q -f name={container Name}
-    if [[  $(docker-compose ps -a | grep ${WP_DB_NAME} -c ) -eq 0 ]]; then
-        docker-compose up --no-start ${WP_DB_NAME} ${WP_NAME}  1> /tmp/stdout.log 2> /tmp/stderr.log; writeLog INFO < /tmp/stdout.log; writeLog ERR < /tmp/stderr.log
-        docker-compose start  ${WP_DB_NAME} ${WP_NAME}   1> /tmp/stdout.log 2> /tmp/stderr.log; writeLog INFO < /tmp/stdout.log; writeLog ERR < /tmp/stderr.log
+    if [[  $( eval ${dcompose} ps -a | grep ${WP_DB_NAME} -c ) -eq 0 ]]; then
+        eval "${dcompose} up --no-start ${WP_DB_NAME} ${WP_NAME}"  1> /tmp/stdout.log 2> /tmp/stderr.log; writeLog INFO < /tmp/stdout.log; writeLog ERR < /tmp/stderr.log
+        eval "${dcompose} start  ${WP_DB_NAME} ${WP_NAME}"   1> /tmp/stdout.log 2> /tmp/stderr.log; writeLog INFO < /tmp/stdout.log; writeLog ERR < /tmp/stderr.log
     fi
     [[ ${WP_HTTPS} -eq 1 ]] && WP_PROT="https" || WP_PROT="http"
     sleep 15
@@ -204,13 +215,13 @@ initWP() {
 }
 
 pluginsWP() {
-    echo pluginsWP | writeLog TRACE
+    echo FUNCTION_pluginsWP | writeLog TRACE
     eval $wp_docker ${WP_CLI_NAME} wp plugin install --activate ${WP_PLUGINS[@]} 1> /tmp/stdout.log 2> /tmp/stderr.log; writeLog INFO < /tmp/stdout.log; writeLog ERR < /tmp/stderr.log
     eval $wp_docker ${WP_CLI_NAME} wp plugin auto-updates enable --all 1> /tmp/stdout.log 2> /tmp/stderr.log; writeLog INFO < /tmp/stdout.log; writeLog ERR < /tmp/stderr.log #awaiting update to implement this function
 }
 
 optionsWP() {
-    echo optionsWP | writeLog TRACE
+    echo FUNCTION_optionsWP | writeLog TRACE
     keylen=$(jq -r '.wp_options| length' env.json)
     #keyvalue
     for ((i=0;i<keylen;i++)); 
@@ -233,20 +244,20 @@ optionsWP() {
 }
 
 getWPoptions() {
-    echo getWPoptions | writeLog TRACE
-    eval $wp_docker ${WP_CLI_NAME} wp option list --format=json --unserialize > wp_options.json 1> /tmp/stdout.log 2> /tmp/stderr.log; writeLog INFO < /tmp/stdout.log; writeLog ERR < /tmp/stderr.log
-    eval $wp_docker ${WP_CLI_NAME} wp option list --format=yaml --unserialize > wp_options.yaml 1> /tmp/stdout.log 2> /tmp/stderr.log; writeLog INFO < /tmp/stdout.log; writeLog ERR < /tmp/stderr.log
+    echo FUNCTION_getWPoptions | writeLog TRACE
+    eval "$wp_docker ${WP_CLI_NAME} wp option list --format=json --unserialize" 1> wp_options.json 2> /tmp/stderr.log; writeLog ERR < /tmp/stderr.log
+    eval "$wp_docker ${WP_CLI_NAME} wp option list --format=yaml --unserialize" 1> wp_options.yaml 2> /tmp/stderr.log; writeLog ERR < /tmp/stderr.log
     echo  "Exported to wp_options.json/yaml" | writeLog "INFO"
 }
 
 
 
 cleanWP() {
-    echo cleanWP | writeLog TRACE
+    echo FUNCTION_cleanWP | writeLog TRACE
         if [[ ! -f  ./docker-compose.yml ]];then
            echo "WP is not initialized, ignoring docker commands"
         else
-           docker-compose rm --force --stop -v  1> /tmp/stdout.log 2> /tmp/stderr.log; writeLog INFO < /tmp/stdout.log; writeLog ERR < /tmp/stderr.log
+           eval ${dcompose} rm --force --stop -v  1> /tmp/stdout.log 2> /tmp/stderr.log; writeLog INFO < /tmp/stdout.log; writeLog ERR < /tmp/stderr.log
            docker volume prune --force  --filter label=com.docker.compose.project="$(basename $PWD)"  1> /tmp/stdout.log 2> /tmp/stderr.log; writeLog INFO < /tmp/stdout.log; writeLog ERR < /tmp/stderr.log
         fi
         [[ ${WP_APACHE} -eq "1" && -f "./${WP_URL}.conf" ]] &&  rm ./"${WP_URL}.conf"
@@ -256,7 +267,7 @@ cleanWP() {
         [[ ${WP_APACHE} -eq "1" && -f "/etc/apache2/sites-available/${WP_URL}.conf" ]] && rm  "/etc/apache2/sites-available/${WP_URL}.conf"
 }
 purge() {
-    echo purge | writeLog TRACE
+    echo FUNCTION_purge | writeLog TRACE
     read -p "Are you sure (Y/n)" q
     if [[ $q -eq "Y" ]]; then
         cleanWP
@@ -275,7 +286,7 @@ purge() {
 
 
 update() {
-    echo update | writeLog TRACE
+    echo FUNCTION_update | writeLog TRACE
     echo "Updating wp-cli" | writeLog "INFO"
     docker pull wordpress:cli-php8.0 
     echo "Checking for wp updates"  | writeLog "INFO"
@@ -288,7 +299,7 @@ update() {
     eval $wp_docker ${WP_CLI_NAME} wp plugin update --all  1> /tmp/stdout.log 2> /tmp/stderr.log; writeLog INFO < /tmp/stdout.log; writeLog ERR < /tmp/stderr.log
 }
 createFiles() {
-    echo createFiles | writeLog TRACE
+    echo FUNCTION_createFiles | writeLog TRACE
     addVirtualHost
     #backup old docker-compose.yml
     if [[ -f "./docker-compose.yml" ]]; then
@@ -297,7 +308,8 @@ createFiles() {
     fi
     cp ./docker-compose.template docker-compose.yml #create new docker-compose.yml
     echo "\${variables} → \$WP_ENV in docker-compose.yml" | writeLog INFO
-    envsubst < ./docker-compose.template > docker-compose.yml
+    #envsubst < ./docker-compose.template > docker-compose.yml #full substitution
+    envsubst '$WP_CLI_NAME $WP_DB_NAME $WP_NAME'  < ./docker-compose.template  >docker-compose.yml #only names of containers
 
 }
 
@@ -305,16 +317,15 @@ exitScript() {
 ###
 ### Cleanup
 ###
-    for i in $(cat ./.env | cut -d ' ' -f2 |cut -d "=" -f 1);do
+    for i in $(cat ./.env | cut -d "=" -f 1);do
       unset $i
     done
-    [[ -f "./.env" ]] && rm  "./.env"
     IFS=IFS_OLD
     exit ${error}
 }
 
 main() {
-    echo main | writeLog TRACE
+    echo FUNCTION_main | writeLog TRACE
     if [[ -f './.WP_INITIALIZED' && $force -eq 0 ]]; then
         echo  "already initialised" | writeLog "INFO"
         exit 0
@@ -326,7 +337,9 @@ main() {
     if [[ ! -f './.WP_INITIALIZED'  ]]; then
         #addDNSEntry
         createFiles
-        initWP 
+        initWP
+        sleep 30
+        update
         touch ./.WP_INITIALIZED
     fi
 }
