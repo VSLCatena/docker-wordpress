@@ -69,13 +69,13 @@ Optional commands: force, verbose
 
 -P,        --purge              Purge all data (needs confirm)
 
--i,        --init               Rebuild container and files based on .env
+-i,        --init               Rebuild container and files based on .env (does not include --option)
 
 -c,        --create             Rebuild files based on .env
 
 -U,        --update             Update core db and plugins
 
--O         --option            Updates options from .env
+-O         --option            Updates options from .env 
 
 -G         --getoptions        retrieves options from WP
 
@@ -91,6 +91,7 @@ writeLog() {
  #usage:   ls -lat asdf 1> /tmp/stdout.log 2> /tmp/stderr.log; writeLog INFO < /tmp/stdout.log; writeLog ERR < /tmp/stderr.log
  #usage1:  ls -lat asdf 1> /tmp/stdout.log 2> /tmp/stderr.log;  writeLog INFO < /tmp/stdout.log; writeLog ERR < /tmp/stderr.log
  #usage2:  ls -lat asdf | writeLog Info
+
 
     IFS=$''
     TODAY=$(date +"%Y%m%d")
@@ -123,7 +124,7 @@ writeLog() {
     printf -v LEVEL %-5.5s "$LEVEL" #justify
 
     #precreate logfile if needed
-    if [[ ${WP_LOG} -eq "1"  ]];then
+    if [[ ${WP_LOG} == "1"  ]];then
         [[ ! -d "./logs/" ]] && mkdir -p ./logs/
         [[ ! -f "./logs/${TODAY}.log" ]] && touch "./logs/${TODAY}.log"
     fi
@@ -132,14 +133,14 @@ writeLog() {
     while read -ers  inputLine; do
         lines=("${lines[@]}" "$inputLine") 
     done
-    if [[ ${#lines[@]} -gt 0 && $( echo "${lines[@]}" | wc -m) -gt 1  ]]; then
+    if [[ ${#lines[@]} -gt 0 && ${#lines} -gt 1  ]]; then
         for i in "${lines[@]}"; do
-            [[ ${WP_LOG} -eq "1"  ]] && printf "%s ${RED}[%s]${NC} %s\n" ${TS} "${LEVEL}" "$i" >> "./logs/${TODAY}.log" 
-            printf "%s ${COLOR}[%s]${NC} %s\n" ${TS} "${LEVEL}" "$i" 
+            [[ ${WP_LOG} -eq "1"  ]] && printf "%s ${RED}[%s]${NC} %s\n" "${TS}" "${LEVEL}" "$i" >> "./logs/${TODAY}.log" 
+            printf "%s ${COLOR}[%s]${NC} %s\n" "${TS}" "${LEVEL}" "$i" 
         done
     fi
     COLOR=$NC
-    IFS=$' \t\n'
+    IFS=$' \t\n';
 }
 
 
@@ -206,11 +207,11 @@ initWP() {
     fi
     [[ ${WP_HTTPS} -eq 1 ]] && WP_PROT="https" || WP_PROT="http"
     sleep 15
-    docker pull wordpress:cli-php8.0  1> /tmp/stdout.log 2> /tmp/stderr.log; writeLog INFO < /tmp/stdout.log; writeLog ERR < /tmp/stderr.log
+    docker pull wordpress:cli  1> /tmp/stdout.log 2> /tmp/stderr.log; writeLog INFO < /tmp/stdout.log; writeLog ERR < /tmp/stderr.log
     eval $wp_docker ${WP_CLI_NAME} wp core install --url="${WP_PROT}://${WP_URL}" --title=${WP_TITLE} --admin_user=${WP_ADMIN} --admin_password=${WP_ADMIN_PASSWORD} --admin_email=${WP_ADMIN_EMAIL} 1> /tmp/stdout.log 2> /tmp/stderr.log; writeLog INFO < /tmp/stdout.log; writeLog ERR < /tmp/stderr.log
     pluginsWP
     sleep 15
-    optionsWP
+    #optionsWP 20230219 broken.
     eval $wp_docker ${WP_CLI_NAME} wp user create ${WP_USER} ${WP_USER_EMAIL} --role=administrator --user_pass=${WP_USER_PASSWORD} 1> /tmp/stdout.log 2> /tmp/stderr.log; writeLog INFO < /tmp/stdout.log; writeLog ERR < /tmp/stderr.log
 }
 
@@ -224,13 +225,19 @@ optionsWP() {
     echo FUNCTION_optionsWP | writeLog TRACE
     keylen=$(jq -r '.wp_options| length' env.json)
     #keyvalue
-    for ((i=0;i<keylen;i++)); 
+    for (( i=0; i<$keylen; i++ ));
     do
         #jq -r --argjson i $i '.wp_options[$i] | {(.option_name):.option_value}' ./env.json >/tmp/var.json #write option to disk
         jq  --compact-output --argjson i $i '.wp_options[$i] | .option_value' ./env.json >/tmp/var.json #write option to disk
         #sed -i 's/"//g' /tmp/var.json
         key=$(jq -r --argjson i $i '.wp_options[$i] |  {(.option_name):.option_value}|to_entries|.[].key' ./env.json) #get option key
-        eval $wp_docker ${WP_CLI_NAME} wp option update --format=json --autoload=yes $key < /tmp/var.json  1> /tmp/stdout.log 2> /tmp/stderr.log; writeLog INFO < /tmp/stdout.log; writeLog ERR < /tmp/stderr.log
+        [[ $(grep -qPe '{.*}' -l /tmp/var.json) ]] && formatjson='--format=json' || formatjson=''
+        value=$(cat /tmp/var.json)
+        eval $wp_docker ${WP_CLI_NAME} wp option update $formatjson $key \'$value\'  1> /tmp/stdout.log 2> /tmp/stderr.log; 
+        #writeLog INFO < /tmp/stdout.log; 
+        echo "output:" && cat /tmp/stdout.log;
+        #writeLog ERR < /tmp/stderr.log
+        echo "errors:" && cat /tmp/stderr.log;
     done
 
  # jq -r '.wp_options as $in | .wp_options| reduce paths(scalars) as $path ({}; . + { ( [$in[$path[0]].option_name]+$path[2:]  | map(tostring) | join(" ")): $in| getpath($path) } as $data | $data | map_values(select( $in[$path[0]].option_name != ($in|getpath($path)))))' env.json
@@ -257,6 +264,7 @@ cleanWP() {
         if [[ ! -f  ./docker-compose.yml ]];then
            echo "WP is not initialized, ignoring docker commands"
         else
+           eval ${dcompose} down --volumes -v  1> /tmp/stdout.log 2> /tmp/stderr.log; writeLog INFO < /tmp/stdout.log; writeLog ERR < /tmp/stderr.log
            eval ${dcompose} rm --force --stop -v  1> /tmp/stdout.log 2> /tmp/stderr.log; writeLog INFO < /tmp/stdout.log; writeLog ERR < /tmp/stderr.log
            docker volume prune --force  --filter label=com.docker.compose.project="$(basename $PWD)"  1> /tmp/stdout.log 2> /tmp/stderr.log; writeLog INFO < /tmp/stdout.log; writeLog ERR < /tmp/stderr.log
         fi
@@ -272,9 +280,11 @@ purge() {
     if [[ $q -eq "Y" ]]; then
         cleanWP
         echo "You need to manually remove DNS entry"  | writeLog "INFO"
-        read -p "Delete folder (Y/n)" f
+        read -p "Delete folder contents (except env.json, logs and repo files)? (Y/n)" f
         if [[ $f == "Y" ]]; then
-            rm "../$(basename $PWD)"
+            rm -i ./global.env ./script.env ./docker-compose.yml
+            # keep README.md env.json logs server.virtualhost.conf  ci.env.json  docker-compose.template env.json.example  json2env wp-cli.sh
+
         fi
     else 
         echo "Action aborted"  | writeLog "INFO"
@@ -288,7 +298,7 @@ purge() {
 update() {
     echo FUNCTION_update | writeLog TRACE
     echo "Updating wp-cli" | writeLog "INFO"
-    docker pull wordpress:cli-php8.0 
+    docker pull wordpress:cli 
     echo "Checking for wp updates"  | writeLog "INFO"
     eval $wp_docker ${WP_CLI_NAME} wp core check-update 1> /tmp/stdout.log 2> /tmp/stderr.log; writeLog INFO < /tmp/stdout.log; writeLog ERR < /tmp/stderr.log
     echo "Updating wp core"  | writeLog "INFO"
