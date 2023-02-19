@@ -14,7 +14,7 @@ services:
   ${WP_DB_NAME}:
     container_name: ${WP_DB_NAME}
     hostname: ${WP_DB_NAME}
-    image: mariadb
+    image: mariadb:latest
 #    image: mysql:5.7
     volumes:
       - wp-db:/var/lib/mysql
@@ -33,7 +33,7 @@ services:
     hostname: ${WP_NAME}
     depends_on:
       - ${WP_DB_NAME}
-    image: wordpress:php8.0
+    image: wordpress:php8.2
     ports:
       - ${WP_PORT}:80
 #      - 127.0.0.1:9001:80
@@ -60,7 +60,7 @@ services:
     depends_on:
       - ${WP_DB_NAME}
       - ${WP_NAME}
-    image: wordpress:cli-php8.0
+    image: wordpress:cli-php8.2
     volumes_from:
       - ${WP_DB_NAME}
       - ${WP_NAME}
