@@ -1,5 +1,7 @@
 # docker-wordpress
 WordPress 
 
-[![Build](https://github.com/VSLCatena/docker-wordpress/actions/workflows/Wordpress-CI.yml/badge.svg)](https://github.com/VSLCatena/docker-wordpress/actions/workflows/Wordpress-CI.yml)
-[![Codacy Security Scan](https://github.com/VSLCatena/docker-wordpress/actions/workflows/codacy-analysis.yml/badge.svg)](https://github.com/VSLCatena/docker-wordpress/actions/workflows/codacy-analysis.yml)
+1. Load repository URL
+2. Copy contents of `.env.example` to `Environment variable/Advanced Mode`
+3. Start stack
+4. Configure WP
