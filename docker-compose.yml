@@ -13,7 +13,7 @@ volumes:
   wp-data:
 
 services:
-  db:
+  ${WP_DB_NAME:-db}:
     container_name: ${WP_DB_NAME:-db}
     hostname: ${WP_DB_NAME:-db}
     image: mariadb:latest
@@ -29,7 +29,7 @@ services:
       - net
 ## update WORDPRESS_TABLE_PREFIX_options set option_value='https://URL' where option_id<=2; #siteurl / home
 
-  wordpress:
+  ${WP_NAME:-wordpress}:
     container_name: ${WP_NAME:-wordpress}
     hostname: ${WP_NAME:-wordpress}
     depends_on:
@@ -54,7 +54,7 @@ services:
     networks:
       - net
 
-  wordpress-cli:
+  ${WP_CLI_NAME:-wpcli}:
     container_name: ${WP_CLI_NAME:-wpcli}
     hostname: ${WP_CLI_NAME:-wpcli}
     image: wordpress:cli-php8
