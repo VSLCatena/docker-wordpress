@@ -1,21 +1,22 @@
-version: "3.9"
-
 networks:
   net:
     driver: bridge
     ipam:
      driver: default
      config:
-       - subnet: ${WP_SUBNET}/29 #192.168.90.25 - 192.168.90.30
+       - subnet: ${WP_SUBNET:-172.16.255.0}/29
     driver_opts:
-      com.docker.network.bridge.name: ${WP_SUBNET_NAME}
+      com.docker.network.bridge.name: ${WP_SUBNET_NAME:-WP_NET}
+
+volumes:
+  wp-db:
+  wp-data:
 
 services:
-  ${WP_DB_NAME}:
-    container_name: ${WP_DB_NAME}
-    hostname: ${WP_DB_NAME}
-    image: mariadb
-#    image: mysql:5.7
+  db:
+    container_name: ${WP_DB_NAME:-db}
+    hostname: ${WP_DB_NAME:-db}
+    image: mariadb:latest
     volumes:
       - wp-db:/var/lib/mysql
     environment:
@@ -26,21 +27,20 @@ services:
     restart: always
     networks:
       - net
-## update WORDPRESS_TABLE_PREFIX_options set option_value='https://URL' where option_id<=2; #siteurl / home       
+## update WORDPRESS_TABLE_PREFIX_options set option_value='https://URL' where option_id<=2; #siteurl / home
 
-  ${WP_NAME}:
-    container_name: ${WP_NAME}
-    hostname: ${WP_NAME}
+  wordpress:
+    container_name: ${WP_NAME:-wordpress}
+    hostname: ${WP_NAME:-wordpress}
     depends_on:
-      - ${WP_DB_NAME}
-    image: wordpress:php8.0
+      - ${WP_DB_NAME:-db}
+    image: wordpress:php8
     ports:
-      - ${WP_PORT}:80
-#      - 127.0.0.1:9001:80
+      - ${WP_PORT:-80}:80
     volumes: 
       - wp-data:/var/www/html 
     environment:
-        WORDPRESS_DEBUG: ${WP_DEBUG}
+        WORDPRESS_DEBUG: ${WP_DEBUG:-false}
         WORDPRESS_DB_HOST: ${WP_DB_NAME}:3306
         WORDPRESS_DB_USER: ${WP_DB_USER}
         WORDPRESS_DB_PASSWORD: ${WP_DB_PASSWORD}
@@ -48,36 +48,35 @@ services:
         WORDPRESS_TABLE_PREFIX: ${WP_TABLE_PREFIX}
         WORDPRESS_CONFIG_EXTRA: |
          // Disallow file edit
-         define( 'DISALLOW_FILE_EDIT', true );    
+         define( 'DISALLOW_FILE_EDIT', true );
     restart: always
     command: apache2-foreground 
     networks:
       - net
 
-  ${WP_CLI_NAME}:
-    container_name: ${WP_CLI_NAME}
-    hostname: ${WP_CLI_NAME}
+  wordpress-cli:
+    container_name: ${WP_CLI_NAME:-wpcli}
+    hostname: ${WP_CLI_NAME:-wpcli}
+    image: wordpress:cli-php8
+    profiles:
+      - cli
     depends_on:
-      - ${WP_DB_NAME}
-      - ${WP_NAME}
-    image: wordpress:cli-php8.0
+      - ${WP_DB_NAME:-db}
+      - ${WP_NAME:-wpcli}
     volumes_from:
-      - ${WP_DB_NAME}
-      - ${WP_NAME}
+      - ${WP_DB_NAME:-db}
+      - ${WP_NAME:-wordpress}
     links:
-      - ${WP_DB_NAME}:mysql
-    user: "33:33"
+      - ${WP_DB_NAME:-db}:mysql
     environment:
-        WORDPRESS_DEBUG: ${WP_DEBUG}
-        WORDPRESS_DB_HOST: ${WP_DB_NAME}:3306
+        WORDPRESS_DEBUG: ${WP_DEBUG:-false}
+        WORDPRESS_DB_HOST: ${WP_DB_NAME:-db}:3306
         WORDPRESS_DB_USER: ${WP_DB_USER}
         WORDPRESS_DB_PASSWORD: ${WP_DB_PASSWORD}
         WORDPRESS_DB_NAME: ${WP_DB_DATABASE}
     working_dir: /var/www/html
+    user: "33:33"    
     networks:
       - net
 
 
-volumes:
-  wp-db:
-  wp-data:
