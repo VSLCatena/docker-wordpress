@@ -34,6 +34,17 @@ services:
     depends_on:
       - ${WP_DB_NAME}
     image: wordpress:php8.2
+    labels:
+      - "traefik.enable=true"
+      - "traefik.docker.network=${PROJECT_TRAEFIK_NETWORK}"
+      - "traefik.http.routers.${PROJECT}.tls=true"
+      - "traefik.http.routers.${PROJECT}.rule=Host(`${PROJECT_FQDN}`) || Host(`${PROJECT_FQDN2}`)"
+      - "traefik.http.routers.${PROJECT}.entrypoints=${PROJECT_ENTRYPOINT}"
+      - "traefik.http.routers.${PROJECT}.tls.domains[0].main=${PROJECT_DOMAIN_MAIN}"
+      - "traefik.http.routers.${PROJECT}.tls.domains[0].sans=${PROJECT_DOMAIN_SANS}"
+      - "traefik.http.routers.${PROJECT}.tls.certresolver=${PROJECT_CERT_RESOLVER}"
+      - "traefik.http.routers.${PROJECT}.middlewares=${PROJECT_MIDDLEWARES}"
+      - "traefik.http.services.${PROJECT}.loadbalancer.server.port=80"
     ports:
       - ${WP_PORT}:80
 #      - 127.0.0.1:9001:80
